@@ -1,0 +1,23 @@
+Backup App Deployment Information
+Generated: Fri Jan  2 16:56:14 CET 2026
+
+Instance ID: i-0f83845af2e0c4fec
+Public IP: 100.48.101.102
+Public DNS: ec2-100-48-101-102.compute-1.amazonaws.com
+Region: us-east-1
+S3 Bucket: backup-app-storage-1767369324
+Security Group: sg-03e00953fd055af57
+IAM Role: backup-app-role
+Instance Profile: backup-app-profile
+
+Application URL: http://100.48.101.102
+SSH Command: ssh -i ~/.ssh/backup-app-key.pem ubuntu@100.48.101.102
+
+Monitor Installation:
+  ssh -i ~/.ssh/backup-app-key.pem ubuntu@100.48.101.102 'tail -f /var/log/user-data.log'
+
+Check Status:
+  ssh -i ~/.ssh/backup-app-key.pem ubuntu@100.48.101.102 'sudo systemctl status backup-daemon'
+
+View Logs:
+  ssh -i ~/.ssh/backup-app-key.pem ubuntu@100.48.101.102 'sudo journalctl -u backup-daemon -f'

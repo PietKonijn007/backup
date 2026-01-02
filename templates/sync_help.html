@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>How to Sync - Backup System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 0;
+        }
+        .help-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            padding: 40px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .code-block {
+            background: #f5f5f5;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+        .step-number {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="help-card">
+            <h1><i class="bi bi-cloud-arrow-up"></i> How to Sync Files to AWS S3</h1>
+            <p class="lead">Follow these steps to sync your Google Drive files to AWS S3.</p>
+            
+            <hr class="my-4">
+            
+            <h2><span class="step-number">1</span> Get File/Folder ID from Google Drive</h2>
+            <div class="code-block">
+                <p><strong>For Files:</strong></p>
+                <ol>
+                    <li>Go to the <a href="/files" target="_blank">Files page</a></li>
+                    <li>Right-click on a file → "Open in Google Drive" or hover to see the file ID in the browser</li>
+                    <li>The URL looks like: <code>https://drive.google.com/file/d/<strong>FILE_ID</strong>/view</code></li>
+                    <li>Copy the <strong>FILE_ID</strong> part</li>
+                </ol>
+                
+                <p><strong>For Folders:</strong></p>
+                <ol>
+                    <li>Click on a folder to navigate into it</li>
+                    <li>Check the browser URL: <code>/?folder_id=<strong>FOLDER_ID</strong></code></li>
+                    <li>Copy the <strong>FOLDER_ID</strong></li>
+                </ol>
+            </div>
+            
+            <h2><span class="step-number">2</span> Sync Using Browser Console</h2>
+            <p>Open your browser console (F12 or right-click → Inspect → Console) and run:</p>
+            
+            <div class="code-block">
+                <p><strong>Sync a Single File:</strong></p>
+                <pre><code>fetch('/api/sync/file', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({file_id: 'YOUR_FILE_ID_HERE'})
+})
+.then(r => r.json())
+.then(data => console.log('Result:', data))</code></pre>
+            </div>
+            
+            <div class="code-block">
+                <p><strong>Sync Entire Folder:</strong></p>
+                <pre><code>fetch('/api/sync/folder', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({folder_id: 'YOUR_FOLDER_ID_HERE'})
+})
+.then(r => r.json())
+.then(data => console.log('Result:', data))</code></pre>
+            </div>
+            
+            <div class="code-block">
+                <p><strong>Sync Multiple Files:</strong></p>
+                <pre><code>fetch('/api/sync/files', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({file_ids: ['FILE_ID_1', 'FILE_ID_2', 'FILE_ID_3']})
+})
+.then(r => r.json())
+.then(data => console.log('Result:', data))</code></pre>
+            </div>
+            
+            <h2><span class="step-number">3</span> Sync Using Terminal/API</h2>
+            <div class="code-block">
+                <p><strong>Using curl:</strong></p>
+                <pre><code># Sync single file
+curl -X POST http://localhost:8080/api/sync/file \
+  -H "Content-Type: application/json" \
+  -d '{"file_id": "YOUR_FILE_ID"}'
+
+# Sync folder
+curl -X POST http://localhost:8080/api/sync/folder \
+  -H "Content-Type: application/json" \
+  -d '{"folder_id": "YOUR_FOLDER_ID"}'</code></pre>
+            </div>
+            
+            <h2><span class="step-number">4</span> Check Results in AWS S3</h2>
+            <div class="code-block">
+                <ol>
+                    <li>Go to <a href="https://s3.console.aws.amazon.com/s3/buckets/hofkens-backup" target="_blank">AWS S3 Console</a></li>
+                    <li>Open your bucket: <code>hofkens-backup</code></li>
+                    <li>Look in the <code>google-drive/</code> folder</li>
+                    <li>Your synced files will appear there!</li>
+                </ol>
+            </div>
+            
+            <div class="alert alert-success mt-4">
+                <h4><i class="bi bi-lightbulb"></i> Pro Tips:</h4>
+                <ul class="mb-0">
+                    <li>Syncing happens in real-time - download from Drive, upload to S3</li>
+                    <li>Files are temporarily stored in <code>/tmp/backup-sync</code> then deleted</li>
+                    <li>Large files may take a few minutes to sync</li>
+                    <li>Check the terminal logs for sync progress</li>
+                    <li>Folder sync downloads ALL files in the folder recursively</li>
+                </ul>
+            </div>
+            
+            <div class="alert alert-info mt-4">
+                <h4><i class="bi bi-info-circle"></i> Example: Sync "Erfenis" Folder</h4>
+                <p>From your screenshot, to sync the "Erfenis" folder:</p>
+                <ol>
+                    <li>Click on "Erfenis" to open it</li>
+                    <li>Copy the folder_id from URL</li>
+                    <li>Open browser console (F12)</li>
+                    <li>Run:
+                        <pre><code>fetch('/api/sync/folder', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({folder_id: 'FOLDER_ID_FROM_URL'})
+}).then(r => r.json()).then(console.log)</code></pre>
+                    </li>
+                    <li>Wait for completion message</li>
+                    <li>Check AWS S3 Console!</li>
+                </ol>
+            </div>
+            
+            <div class="text-center mt-5">
+                <a href="/files" class="btn btn-primary btn-lg">
+                    <i class="bi bi-folder"></i> Go to Files
+                </a>
+                <a href="/" class="btn btn-secondary btn-lg">
+                    <i class="bi bi-house"></i> Back to Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

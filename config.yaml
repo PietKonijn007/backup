@@ -1,0 +1,55 @@
+sources:
+  google_drive:
+    enabled: true
+    local_path: /sync/google-drive
+    exclude_paths: []
+    exclude_patterns: ['*.tmp', '.DS_Store', '~$*']
+    
+  google_photos:
+    enabled: true
+    local_path: /sync/google-photos
+    organize_by_date: true  # YYYY/MM/DD structure
+    
+destinations:
+  aws_s3:
+    enabled: true
+    bucket: hofkens-backup
+    region: us-east-1
+    storage_class: INTELLIGENT_TIERING
+    
+  eu_provider:
+    enabled: true
+    type: scaleway
+    bucket: my-backup-bucket-eu
+    region: fr-par
+    endpoint: s3.fr-par.scw.cloud
+    
+sync:
+  mode: realtime
+  auto_start: true  # Daemon auto-starts and monitors configured items
+  interval_seconds: 300  # Check for new files every 5 minutes
+  check_recent_days: 7   # Check files modified in last 7 days
+  batch_size: 100
+  retry_attempts: 5
+  retry_delay_seconds: 30
+  max_file_size_gb: 50
+  temp_dir: /tmp/backup-sync
+  
+daemon:
+  api_port: 8080
+  api_host: 0.0.0.0
+  log_level: INFO
+  log_file: /var/log/backup-daemon/app.log
+  
+security:
+  api_authentication: true
+  
+notifications:
+  email:
+    enabled: false
+    smtp_server: smtp.gmail.com
+    smtp_port: 587
+    from: backup@example.com
+    to: user@example.com
+    on_error: true
+    daily_summary: false

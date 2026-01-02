@@ -1,0 +1,44 @@
+# Environment and credentials
+.env
+*.pem
+token.pickle
+credentials.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+build/
+dist/
+*.egg-info/
+
+# Database
+*.db
+sync_state.db
+
+# Logs
+*.log
+logs/
+/var/log/
+
+# Temporary files
+/sync/
+*.tmp
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# rclone config
+.config/rclone/
+
+# System files
+Thumbs.db

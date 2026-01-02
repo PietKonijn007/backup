@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Files - Backup System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .navbar {
+            background: rgba(255, 255, 255, 0.95) !important;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .container-main {
+            margin-top: 80px;
+            padding-bottom: 50px;
+        }
+        .files-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .files-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+        }
+        .tree-container {
+            padding: 20px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+        .tree-node {
+            padding: 8px 12px;
+            margin: 2px 0;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+        .tree-node:hover {
+            background: #f8f9fa;
+        }
+        .tree-node.selected {
+            background: #e3f2fd;
+        }
+        .tree-node-content {
+            display: flex;
+            align-items: center;
+            flex: 1;
+            gap: 10px;
+        }
+        .tree-indent {
+            display: inline-block;
+            width: 24px;
+        }
+        .tree-expand {
+            width: 20px;
+            height: 20px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border-radius: 3px;
+            transition: all 0.2s ease;
+        }
+        .tree-expand:hover {
+            background: #e9ecef;
+        }
+        .tree-expand.collapsed i {
+            transform: rotate(-90deg);
+        }
+        .tree-children {
+            margin-left: 24px;
+        }
+        .tree-children.collapsed {
+            display: none;
+        }
+        .file-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+        .file-icon.folder { background: linear-gradient(135deg, #FFA726 0%, #FB8C00 100%); color: white; }
+        .file-icon.document { background: linear-gradient(135deg, #42A5F5 0%, #1E88E5 100%); color: white; }
+        .file-icon.spreadsheet { background: linear-gradient(135deg, #66BB6A 0%, #43A047 100%); color: white; }
+        .file-icon.presentation { background: linear-gradient(135deg, #FFA726 0%, #F57C00 100%); color: white; }
+        .file-icon.image { background: linear-gradient(135deg, #EC407A 0%, #D81B60 100%); color: white; }
+        .file-icon.video { background: linear-gradient(135deg, #AB47BC 0%, #8E24AA 100%); color: white; }
+        .file-icon.pdf { background: linear-gradient(135deg, #EF5350 0%, #E53935 100%); color: white; }
+        .file-icon.default { background: linear-gradient(135deg, #78909C 0%, #546E7A 100%); color: white; }
+        .file-checkbox {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .file-name {
+            font-size: 14px;
+            font-weight: 500;
+            color: #333;
+            flex: 1;
+        }
+        .file-meta {
+            font-size: 12px;
+            color: #6c757d;
+            margin-left: auto;
+        }
+        .badge-auto-sync {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-size: 10px;
+            padding: 3px 8px;
+            border-radius: 10px;
+            margin-left: 8px;
+        }
+        .badge-synced {
+            background: linear-gradient(135deg, #66BB6A 0%, #43A047 100%);
+            color: white;
+            font-size: 10px;
+            padding: 3px 8px;
+            border-radius: 10px;
+            margin-left: 8px;
+        }
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+        .loading-content {
+            text-align: center;
+        }
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .storage-info {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .progress { height: 10px; border-radius: 10px; }
+        .selection-bar {
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            padding: 15px 20px;
+            display: none;
+        }
+        .selection-bar.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-light fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-cloud-arrow-up"></i> Backup System
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item"><a class="nav-link" href="/">Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="/files">Files</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/photos">Photos</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/logs">Logs</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/settings">Settings</a></li>
+                </ul>
+                <ul class="navbar-nav">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-person-circle"></i> {{ user.username }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="/settings"><i class="bi bi-gear"></i> Settings</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="/logout"><i class="bi bi-box-arrow-right"></i> Logout</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container container-main">
+        <!-- Storage Info -->
+        <div class="storage-info" id="storageInfo" style="display: none;">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h6 class="mb-2">Google Drive Storage</h6>
+                    <div class="progress">
+                        <div class="progress-bar" role="progressbar" style="width: 0%" id="storageProgress"></div>
+                    </div>
+                    <small class="text-muted mt-1 d-block" id="storageText">Loading...</small>
+                </div>
+                <div class="col-md-4 text-end">
+                    <h3 class="mb-0" id="storagePercentage">0%</h3>
+                    <small class="text-muted">Used</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Files Card -->
+        <div class="files-card">
+            <div class="files-header">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h2><i class="bi bi-folder2-open"></i> Google Drive Tree View</h2>
+                        <p class="mb-0">Complete hierarchical view of your Google Drive - Check folders/files to sync to AWS S3</p>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <button class="btn btn-light" onclick="expandAll()">
+                            <i class="bi bi-arrows-expand"></i> Expand All
+                        </button>
+                        <button class="btn btn-light" onclick="collapseAll()">
+                            <i class="bi bi-arrows-collapse"></i> Collapse All
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Selection Bar -->
+            <div class="selection-bar" id="selectionBar">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong><span id="selectionCount">0</span></strong> items selected for auto-sync
+                        <button class="btn btn-sm btn-link" onclick="clearSelection()">Clear</button>
+                    </div>
+                    <div>
+                        <button class="btn btn-primary" onclick="saveConfiguration()">
+                            <i class="bi bi-check-circle"></i> Save Configuration
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tree Container -->
+            <div class="tree-container" id="treeContainer">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-3 text-muted">Loading your Google Drive structure...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay" style="display: none;">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <h4>Building Complete Drive Structure...</h4>
+            <p class="text-muted">This may take a few moments</p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let driveTree = [];
+        let configuredItems = new Set();
+        let syncStatusMap = {};
+        let selectedFiles = new Set();
+
+        // Load configured items
+        async function loadConfiguredItems() {
+            try {
+                const response = await fetch('/api/sync/config');
+                const data = await response.json();
+                
+                if (data.success) {
+                    configuredItems.clear();
+                    data.items.forEach(item => {
+                        configuredItems.add(item.item_id);
+                        selectedFiles.add(item.item_id);
+                    });
+                    console.log(`Loaded ${data.items.length} configured items`);
+                }
+            } catch (error) {
+                console.error('Error loading configured items:', error);
+            }
+        }
+
+        // Load sync status
+        async function loadSyncStatus() {
+            try {
+                const response = await fetch('/api/sync/status');
+                const data = await response.json();
+                
+                if (data.success) {
+                    syncStatusMap = data.status_map;
+                    console.log(`Loaded sync status for ${Object.keys(syncStatusMap).length} files`);
+                }
+            } catch (error) {
+                console.error('Error loading sync status:', error);
+            }
+        }
+
+        // Load storage info
+        async function loadStorageInfo() {
+            try {
+                const response = await fetch('/api/drive/storage');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const storage = data.storage;
+                    document.getElementById('storageInfo').style.display = 'block';
+                    document.getElementById('storageProgress').style.width = storage.percentage + '%';
+                    document.getElementById('storagePercentage').textContent = storage.percentage + '%';
+                    document.getElementById('storageText').textContent = 
+                        `${storage.usage_formatted} of ${storage.limit_formatted} used`;
+                    
+                    const progressBar = document.getElementById('storageProgress');
+                    progressBar.className = storage.percentage > 90 ? 'progress-bar bg-danger' :
+                                          storage.percentage > 75 ? 'progress-bar bg-warning' : 'progress-bar bg-success';
+                }
+            } catch (error) {
+                console.error('Error loading storage info:', error);
+            }
+        }
+
+        // Load Drive tree structure
+        async function loadDriveTree() {
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            
+            try {
+                const response = await fetch('/api/drive/tree');
+                const data = await response.json();
+                
+                if (data.success) {
+                    driveTree = data.tree;
+                    renderTree();
+                } else {
+                    document.getElementById('treeContainer').innerHTML = `
+                        <div class="alert alert-danger m-4">
+                            <h5>Error loading Drive structure</h5>
+                            <p>${data.error}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading drive tree:', error);
+                document.getElementById('treeContainer').innerHTML = `
+                    <div class="alert alert-danger m-4">
+                        <h5>Error loading Drive structure</h5>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            } finally {
+                document.getElementById('loadingOverlay').style.display = 'none';
+            }
+        }
+
+        // Render tree structure
+        function renderTree() {
+            const container = document.getElementById('treeContainer');
+            container.innerHTML = renderNodes(driveTree, 0);
+            updateSelectionBar();
+        }
+
+        // Track parent path for inheritance
+        let currentPath = [];
+        
+        // Check if node is inherited (parent is selected)
+        function hasSelectedParent(path) {
+            for (const parentId of path) {
+                if (configuredItems.has(parentId)) {
+                    return parentId;
+                }
+            }
+            return null;
+        }
+        
+        // Render tree nodes recursively
+        function renderNodes(nodes, level, parentPath = []) {
+            if (!nodes || nodes.length === 0) return '';
+            
+            let html = '';
+            
+            for (const node of nodes) {
+                const isFolder = node.type === 'folder';
+                const hasChildren = isFolder && (node.hasChildren || (node.children && node.children.length > 0));
+                const isConfigured = configuredItems.has(node.id);
+                const selectedParent = hasSelectedParent(parentPath);
+                const isExcluded = excludedItems.has(node.id);
+                const isInherited = !isConfigured && !isExcluded && selectedParent !== null;
+                const syncStatus = syncStatusMap[node.id];
+                const indent = '  '.repeat(level);
+                
+                // Determine if checkbox should be checked
+                const isChecked = isExcluded ? false : (isConfigured || isInherited);
+                
+                // Build badges
+                let badges = '';
+                if (isConfigured) {
+                    badges += '<span class="badge-auto-sync"><i class="bi bi-arrow-repeat"></i> Auto-Sync</span>';
+                } else if (isExcluded) {
+                    badges += '<span class="badge-auto-sync" style="background: linear-gradient(135deg, #EF5350 0%, #E53935 100%);"><i class="bi bi-x-circle"></i> Excluded</span>';
+                } else if (isInherited) {
+                    badges += '<span class="badge-auto-sync" style="opacity: 0.7;"><i class="bi bi-arrow-down-circle"></i> Inherited</span>';
+                }
+                if (syncStatus && syncStatus.status === 'synced' && !isExcluded) {
+                    badges += '<span class="badge-synced"><i class="bi bi-check-circle"></i> Synced</span>';
+                }
+                
+                html += `
+                    <div class="tree-node ${isChecked ? 'selected' : ''}" data-node-id="${node.id}" data-inherited="${isInherited}">
+                        <div class="tree-node-content">
+                            ${indent}
+                            ${hasChildren ? `
+                                <div class="tree-expand collapsed" onclick="toggleNode(event, '${node.id}', ${node.childrenLoaded || false})">
+                                    <i class="bi bi-chevron-down"></i>
+                                </div>
+                            ` : '<span class="tree-indent"></span>'}
+                            <input type="checkbox" class="file-checkbox" 
+                                   ${isChecked ? 'checked' : ''}
+                                   data-inherited="${isInherited}"
+                                   onchange="toggleSelection(event, '${node.id}', ${isFolder}, '${selectedParent || ''}')"
+                                   onclick="event.stopPropagation()">
+                            <div class="file-icon ${getIconClass(node)}">
+                                ${getIcon(node)}
+                            </div>
+                            <div class="file-name">
+                                ${escapeHtml(node.name)}
+                                ${badges}
+                            </div>
+                            ${isFolder ? '' : `
+                                <div class="file-meta">
+                                    ${node.sizeFormatted || ''}
+                                </div>
+                            `}
+                        </div>
+                    </div>
+                `;
+                
+                // Render children container (collapsed by default)
+                if (hasChildren) {
+                    const newPath = [...parentPath, node.id];
+                    const childrenHtml = node.children ? renderNodes(node.children, level + 1, newPath) : '';
+                    html += `
+                        <div class="tree-children collapsed" id="children-${node.id}" data-loaded="${node.childrenLoaded || false}">
+                            ${childrenHtml}
+                        </div>
+                    `;
+                }
+            }
+            
+            return html;
+        }
+
+        // Toggle node expansion with lazy loading
+        async function toggleNode(event, nodeId, childrenLoaded) {
+            event.stopPropagation();
+            const childrenDiv = document.getElementById(`children-${nodeId}`);
+            const expandIcon = event.currentTarget;
+            
+            if (childrenDiv.classList.contains('collapsed')) {
+                // Expanding - load children if not loaded yet
+                if (!childrenLoaded && childrenDiv.dataset.loaded === 'false') {
+                    // Show loading indicator
+                    expandIcon.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+                    
+                    try {
+                        // Fetch children from server
+                        const response = await fetch(`/api/drive/folder/${nodeId}`);
+                        const data = await response.json();
+                        
+                        if (data.success && data.children) {
+                            // Find the node in tree and update it
+                            const node = findNodeById(driveTree, nodeId);
+                            if (node) {
+                                node.children = data.children;
+                                node.childrenLoaded = true;
+                            }
+                            
+                            // Re-render this node's children
+                            const parentNode = document.querySelector(`[data-node-id="${nodeId}"]`);
+                            const parentPath = getParentPath(nodeId);
+                            const level = parentPath.length;
+                            
+                            childrenDiv.innerHTML = renderNodes(data.children, level + 1, [...parentPath, nodeId]);
+                            childrenDiv.dataset.loaded = 'true';
+                        }
+                    } catch (error) {
+                        console.error('Error loading children:', error);
+                        childrenDiv.innerHTML = '<div class="alert alert-danger m-2">Error loading folder contents</div>';
+                    }
+                    
+                    // Restore expand icon
+                    expandIcon.innerHTML = '<i class="bi bi-chevron-down"></i>';
+                }
+                
+                childrenDiv.classList.remove('collapsed');
+                expandIcon.classList.remove('collapsed');
+            } else {
+                childrenDiv.classList.add('collapsed');
+                expandIcon.classList.add('collapsed');
+            }
+        }
+        
+        // Get parent path for a node
+        function getParentPath(nodeId) {
+            // This is a simplified version - in reality you'd track this properly
+            return [];
+        }
+
+        // Expand all nodes
+        function expandAll() {
+            document.querySelectorAll('.tree-children').forEach(el => {
+                el.classList.remove('collapsed');
+            });
+            document.querySelectorAll('.tree-expand').forEach(el => {
+                el.classList.remove('collapsed');
+            });
+        }
+
+        // Collapse all nodes
+        function collapseAll() {
+            document.querySelectorAll('.tree-children').forEach(el => {
+                el.classList.add('collapsed');
+            });
+            document.querySelectorAll('.tree-expand').forEach(el => {
+                el.classList.add('collapsed');
+            });
+        }
+
+        // Track exclusions (items explicitly unchecked under a selected parent)
+        let excludedItems = new Set();
+        
+        // Toggle selection
+        function toggleSelection(event, nodeId, isFolder, selectedParent) {
+            event.stopPropagation();
+            
+            const node = document.querySelector(`[data-node-id="${nodeId}"]`);
+            const checkbox = event.target;
+            const isInherited = checkbox.dataset.inherited === 'true';
+            
+            if (checkbox.checked) {
+                // Checking the box
+                if (isInherited) {
+                    // Was inherited, now explicitly including (shouldn't normally happen)
+                    selectedFiles.add(nodeId);
+                    excludedItems.delete(nodeId);
+                } else {
+                    // Normal selection
+                    selectedFiles.add(nodeId);
+                    excludedItems.delete(nodeId);
+                }
+                node.classList.add('selected');
+            } else {
+                // Unchecking the box
+                if (selectedParent) {
+                    // This is under a selected parent - mark as excluded
+                    excludedItems.add(nodeId);
+                    selectedFiles.delete(nodeId);
+                    
+                    // Show feedback that this is now excluded
+                    const badge = node.querySelector('.badge-auto-sync');
+                    if (badge) {
+                        badge.innerHTML = '<i class="bi bi-x-circle"></i> Excluded';
+                        badge.style.background = 'linear-gradient(135deg, #EF5350 0%, #E53935 100%)';
+                    }
+                } else {
+                    // Normal deselection
+                    selectedFiles.delete(nodeId);
+                    excludedItems.delete(nodeId);
+                }
+                node.classList.remove('selected');
+            }
+            
+            updateSelectionBar();
+            
+            // Re-render to update children states
+            renderTree();
+        }
+
+        // Update selection bar
+        function updateSelectionBar() {
+            const count = selectedFiles.size;
+            document.getElementById('selectionCount').textContent = count;
+            const bar = document.getElementById('selectionBar');
+            
+            if (count > 0) {
+                bar.classList.add('show');
+            } else {
+                bar.classList.remove('show');
+            }
+        }
+
+        // Clear selection
+        function clearSelection() {
+            selectedFiles.clear();
+            document.querySelectorAll('.file-checkbox').forEach(cb => cb.checked = false);
+            document.querySelectorAll('.tree-node').forEach(node => node.classList.remove('selected'));
+            updateSelectionBar();
+        }
+
+        // Save configuration
+        async function saveConfiguration() {
+            if (selectedFiles.size === 0) {
+                alert('No items selected');
+                return;
+            }
+            
+            // Find which items need to be added/removed
+            const toAdd = [...selectedFiles].filter(id => !configuredItems.has(id));
+            const toRemove = [...configuredItems].filter(id => !selectedFiles.has(id));
+            
+            try {
+                // Remove unchecked items
+                if (toRemove.length > 0) {
+                    await fetch('/api/sync/config/remove', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ item_ids: toRemove })
+                    });
+                }
+                
+                // Add newly checked items
+                if (toAdd.length > 0) {
+                    const items = toAdd.map(id => {
+                        const node = findNodeById(driveTree, id);
+                        return {
+                            item_id: id,
+                            item_name: node.name,
+                            item_type: node.mimeType || 'file',
+                            is_folder: node.type === 'folder'
+                        };
+                    });
+                    
+                    await fetch('/api/sync/config/add', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ items })
+                    });
+                }
+                
+                // Update configured items
+                await loadConfiguredItems();
+                
+                alert(`✓ Configuration saved!\n\nAdded: ${toAdd.length}\nRemoved: ${toRemove.length}`);
+                
+            } catch (error) {
+                console.error('Error saving configuration:', error);
+                alert('Error saving configuration: ' + error.message);
+            }
+        }
+
+        // Find node by ID in tree
+        function findNodeById(nodes, id) {
+            for (const node of nodes) {
+                if (node.id === id) return node;
+                if (node.children) {
+                    const found = findNodeById(node.children, id);
+                    if (found) return found;
+                }
+            }
+            return null;
+        }
+
+        // Get icon class
+        function getIconClass(node) {
+            if (node.type === 'folder') return 'folder';
+            const mime = node.mimeType || '';
+            if (mime.includes('document')) return 'document';
+            if (mime.includes('spreadsheet')) return 'spreadsheet';
+            if (mime.includes('presentation')) return 'presentation';
+            if (mime.includes('image')) return 'image';
+            if (mime.includes('video')) return 'video';
+            if (mime.includes('pdf')) return 'pdf';
+            return 'default';
+        }
+
+        // Get icon
+        function getIcon(node) {
+            if (node.type === 'folder') return '<i class="bi bi-folder-fill"></i>';
+            const mime = node.mimeType || '';
+            if (mime.includes('document')) return '<i class="bi bi-file-text"></i>';
+            if (mime.includes('spreadsheet')) return '<i class="bi bi-table"></i>';
+            if (mime.includes('presentation')) return '<i class="bi bi-file-slides"></i>';
+            if (mime.includes('image')) return '<i class="bi bi-file-image"></i>';
+            if (mime.includes('video')) return '<i class="bi bi-file-play"></i>';
+            if (mime.includes('pdf')) return '<i class="bi bi-file-pdf"></i>';
+            return '<i class="bi bi-file-earmark"></i>';
+        }
+
+        // Escape HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Initialize
+        async function init() {
+            await loadStorageInfo();
+            await loadConfiguredItems();
+            await loadSyncStatus();
+            await loadDriveTree();
+            
+            // Refresh sync status every 30 seconds
+            setInterval(async () => {
+                await loadSyncStatus();
+                renderTree();
+            }, 30000);
+        }
+
+        init();
+    </script>
+</body>
+</html>

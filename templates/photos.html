@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photos - Backup System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .navbar {
+            background: rgba(255, 255, 255, 0.95) !important;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .container-main {
+            margin-top: 80px;
+            padding-bottom: 50px;
+        }
+        .photos-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .photos-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+        }
+        .view-toggle {
+            display: inline-flex;
+            background: rgba(255,255,255,0.2);
+            border-radius: 25px;
+            padding: 5px;
+        }
+        .view-toggle button {
+            background: transparent;
+            border: none;
+            color: white;
+            padding: 8px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .view-toggle button.active {
+            background: white;
+            color: #667eea;
+        }
+        .album-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+            padding: 20px;
+        }
+        .album-card {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .album-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+        }
+        .album-cover {
+            width: 100%;
+            height: 200px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 3rem;
+        }
+        .album-cover img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .album-info {
+            padding: 15px;
+        }
+        .album-title {
+            font-weight: 600;
+            margin-bottom: 5px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .album-count {
+            color: #6c757d;
+            font-size: 0.85rem;
+        }
+        .media-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            padding: 20px;
+        }
+        .media-item {
+            position: relative;
+            padding-bottom: 100%;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+        .media-item:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+        }
+        .media-item img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .media-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(to top, rgba(0,0,0,0.7), transparent);
+            color: white;
+            padding: 10px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .media-item:hover .media-overlay {
+            opacity: 1;
+        }
+        .video-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.75rem;
+        }
+        .filter-pills {
+            display: flex;
+            gap: 10px;
+            margin: 20px;
+            flex-wrap: wrap;
+        }
+        .filter-pill {
+            padding: 8px 16px;
+            border-radius: 20px;
+            border: 2px solid #e0e0e0;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .filter-pill:hover, .filter-pill.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: transparent;
+        }
+        .loading-spinner {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6c757d;
+        }
+        .empty-state i {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+        .breadcrumb {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            margin: 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-light fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-cloud-arrow-up"></i> Backup System
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/files">Files</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/photos">Photos</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/logs">Logs</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/settings">Settings</a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-person-circle"></i> {{ user.username }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="/settings"><i class="bi bi-gear"></i> Settings</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="/logout"><i class="bi bi-box-arrow-right"></i> Logout</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container container-main">
+        <!-- Photos Card -->
+        <div class="photos-card">
+            <!-- Header -->
+            <div class="photos-header">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <h2><i class="bi bi-image"></i> Google Photos</h2>
+                        <p class="mb-0">Browse your photos and albums</p>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <div class="view-toggle">
+                            <button onclick="switchView('albums')" id="albumsViewBtn" class="active">
+                                <i class="bi bi-folder"></i> Albums
+                            </button>
+                            <button onclick="switchView('photos')" id="photosViewBtn">
+                                <i class="bi bi-grid"></i> Photos
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Breadcrumbs -->
+            <div class="breadcrumb" id="breadcrumbContainer" style="display: none;">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb mb-0" id="breadcrumb">
+                        <li class="breadcrumb-item"><a href="#" onclick="showAlbums(); return false;"><i class="bi bi-folder"></i> Albums</a></li>
+                    </ol>
+                </nav>
+            </div>
+
+            <!-- Filter Pills (for photos view) -->
+            <div class="filter-pills" id="filterPills" style="display: none;">
+                <div class="filter-pill active" onclick="filterPhotos('all')">
+                    <i class="bi bi-grid"></i> All Photos
+                </div>
+                <div class="filter-pill" onclick="filterPhotos('recent')">
+                    <i class="bi bi-clock-history"></i> Recent
+                </div>
+                <div class="filter-pill" onclick="filterPhotos('people')">
+                    <i class="bi bi-people"></i> People
+                </div>
+                <div class="filter-pill" onclick="filterPhotos('pets')">
+                    <i class="bi bi-heart"></i> Pets
+                </div>
+                <div class="filter-pill" onclick="filterPhotos('landscapes')">
+                    <i class="bi bi-mountain"></i> Landscapes
+                </div>
+            </div>
+
+            <!-- Content Area -->
+            <div id="contentArea">
+                <div class="loading-spinner">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Load More -->
+            <div class="text-center p-3" id="loadMoreContainer" style="display: none;">
+                <button class="btn btn-outline-primary" onclick="loadMore()">
+                    <i class="bi bi-arrow-down-circle"></i> Load More
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentView = 'albums';
+        let currentAlbumId = null;
+        let nextPageToken = null;
+        let currentItems = [];
+
+        // Switch between albums and photos view
+        function switchView(view) {
+            currentView = view;
+            currentAlbumId = null;
+            nextPageToken = null;
+            currentItems = [];
+            
+            // Update buttons
+            document.getElementById('albumsViewBtn').classList.toggle('active', view === 'albums');
+            document.getElementById('photosViewBtn').classList.toggle('active', view === 'photos');
+            
+            // Show/hide filter pills
+            document.getElementById('filterPills').style.display = view === 'photos' ? 'flex' : 'none';
+            document.getElementById('breadcrumbContainer').style.display = 'none';
+            
+            // Load content
+            if (view === 'albums') {
+                loadAlbums();
+            } else {
+                loadPhotos();
+            }
+        }
+
+        // Load albums
+        async function loadAlbums(pageToken = null) {
+            try {
+                let url = '/api/photos/albums?page_size=50';
+                if (pageToken) {
+                    url += '&page_token=' + pageToken;
+                }
+
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.success) {
+                    if (pageToken) {
+                        currentItems = currentItems.concat(data.albums);
+                    } else {
+                        currentItems = data.albums;
+                    }
+                    
+                    nextPageToken = data.next_page_token;
+                    displayAlbums(currentItems);
+                    
+                    document.getElementById('loadMoreContainer').style.display = 
+                        nextPageToken ? 'block' : 'none';
+                } else {
+                    showError(data.error);
+                }
+            } catch (error) {
+                console.error('Error loading albums:', error);
+                showError('Failed to load albums. Please make sure you are connected to Google Photos.');
+            }
+        }
+
+        // Display albums
+        function displayAlbums(albums) {
+            const contentArea = document.getElementById('contentArea');
+            
+            if (albums.length === 0) {
+                contentArea.innerHTML = `
+                    <div class="empty-state">
+                        <i class="bi bi-folder-x"></i>
+                        <h4>No Albums Found</h4>
+                        <p>Connect to Google Photos in Settings to see your albums.</p>
+                        <a href="/settings" class="btn btn-primary mt-3">
+                            <i class="bi bi-gear"></i> Go to Settings
+                        </a>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = '<div class="album-grid">';
+            albums.forEach(album => {
+                html += `
+                    <div class="album-card" onclick="openAlbum('${album.id}', '${escapeHtml(album.title)}')">
+                        <div class="album-cover">
+                            ${album.cover_photo_url ? 
+                                `<img src="${album.cover_photo_url}=w400-h400" alt="${escapeHtml(album.title)}">` :
+                                '<i class="bi bi-folder"></i>'}
+                        </div>
+                        <div class="album-info">
+                            <div class="album-title">${escapeHtml(album.title)}</div>
+                            <div class="album-count">${album.media_items_count} items</div>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            
+            contentArea.innerHTML = html;
+        }
+
+        // Open album
+        function openAlbum(albumId, albumTitle) {
+            currentAlbumId = albumId;
+            currentItems = [];
+            nextPageToken = null;
+            
+            // Update breadcrumbs
+            document.getElementById('breadcrumbContainer').style.display = 'block';
+            document.getElementById('breadcrumb').innerHTML = `
+                <li class="breadcrumb-item"><a href="#" onclick="showAlbums(); return false;"><i class="bi bi-folder"></i> Albums</a></li>
+                <li class="breadcrumb-item active">${escapeHtml(albumTitle)}</li>
+            `;
+            
+            loadPhotos();
+        }
+
+        // Show albums (back button)
+        function showAlbums() {
+            currentAlbumId = null;
+            document.getElementById('breadcrumbContainer').style.display = 'none';
+            loadAlbums();
+        }
+
+        // Load photos
+        async function loadPhotos(pageToken = null) {
+            try {
+                let url = '/api/photos/media?page_size=50';
+                if (pageToken) {
+                    url += '&page_token=' + pageToken;
+                }
+                if (currentAlbumId) {
+                    url += '&album_id=' + currentAlbumId;
+                }
+
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.success) {
+                    if (pageToken) {
+                        currentItems = currentItems.concat(data.items);
+                    } else {
+                        currentItems = data.items;
+                    }
+                    
+                    nextPageToken = data.next_page_token;
+                    displayPhotos(currentItems);
+                    
+                    document.getElementById('loadMoreContainer').style.display = 
+                        nextPageToken ? 'block' : 'none';
+                } else {
+                    showError(data.error);
+                }
+            } catch (error) {
+                console.error('Error loading photos:', error);
+                showError('Failed to load photos. Please make sure you are connected to Google Photos.');
+            }
+        }
+
+        // Display photos
+        function displayPhotos(items) {
+            const contentArea = document.getElementById('contentArea');
+            
+            if (items.length === 0) {
+                contentArea.innerHTML = `
+                    <div class="empty-state">
+                        <i class="bi bi-image-fill"></i>
+                        <h4>No Photos Found</h4>
+                        <p>Connect to Google Photos in Settings to see your photos.</p>
+                        <a href="/settings" class="btn btn-primary mt-3">
+                            <i class="bi bi-gear"></i> Go to Settings
+                        </a>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = '<div class="media-grid">';
+            items.forEach(item => {
+                const thumbnailUrl = `${item.base_url}=w400-h400`;
+                html += `
+                    <div class="media-item" onclick="viewMedia('${item.product_url}')">
+                        <img src="${thumbnailUrl}" alt="${escapeHtml(item.filename)}">
+                        ${item.is_video ? '<div class="video-badge"><i class="bi bi-play-fill"></i> Video</div>' : ''}
+                        <div class="media-overlay">
+                            <small>${escapeHtml(item.filename)}</small>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            
+            contentArea.innerHTML = html;
+        }
+
+        // Filter photos by category
+        async function filterPhotos(filter) {
+            // Update active pill
+            document.querySelectorAll('.filter-pill').forEach(pill => {
+                pill.classList.remove('active');
+            });
+            event.target.closest('.filter-pill').classList.add('active');
+            
+            currentAlbumId = null;
+            document.getElementById('breadcrumbContainer').style.display = 'none';
+            
+            if (filter === 'all') {
+                loadPhotos();
+            } else if (filter === 'recent') {
+                await loadRecentPhotos();
+            } else {
+                await loadPhotosByCategory(filter);
+            }
+        }
+
+        // Load recent photos
+        async function loadRecentPhotos() {
+            try {
+                const response = await fetch('/api/photos/recent?days=30&max_results=50');
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayPhotos(data.items);
+                    document.getElementById('loadMoreContainer').style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error loading recent photos:', error);
+            }
+        }
+
+        // Load photos by category
+        async function loadPhotosByCategory(category) {
+            try {
+                const response = await fetch(`/api/photos/category/${category}?max_results=50`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayPhotos(data.items);
+                    document.getElementById('loadMoreContainer').style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error loading photos by category:', error);
+            }
+        }
+
+        // View media (open in Google Photos)
+        function viewMedia(productUrl) {
+            window.open(productUrl, '_blank');
+        }
+
+        // Load more
+        function loadMore() {
+            if (nextPageToken) {
+                if (currentView === 'albums') {
+                    loadAlbums(nextPageToken);
+                } else {
+                    loadPhotos(nextPageToken);
+                }
+            }
+        }
+
+        // Escape HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Show error
+        function showError(message) {
+            document.getElementById('contentArea').innerHTML = `
+                <div class="alert alert-danger m-4" role="alert">
+                    <i class="bi bi-exclamation-triangle"></i> ${message}
+                </div>
+            `;
+        }
+
+        // Initialize
+        loadAlbums();
+    </script>
+</body>
+</html>
