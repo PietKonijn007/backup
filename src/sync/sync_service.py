@@ -99,8 +99,30 @@ class SyncService:
             # Get file metadata
             metadata = self.drive_manager.get_file_metadata(file_id)
             file_name = metadata['name']
+            file_size = metadata.get('size', 0)
             
-            logger.info(f"Syncing file: {file_name}")
+            logger.info(f"Syncing file: {file_name} (size: {self._format_size(file_size)})")
+            
+            # Determine S3 path - preserve full Drive hierarchy
+            if remote_path is None:
+                drive_path = self.get_file_path_in_drive(file_id)
+                remote_path = f"google-drive/{drive_path}"
+                logger.info(f"Preserving Drive hierarchy: {remote_path}")
+            
+            # Check if file already exists in S3
+            exists, existing_size = self.rclone_manager.check_file_exists(remote_path)
+            if exists and existing_size == file_size:
+                logger.info(f"File already exists in backup with same size, skipping: {file_name}")
+                return {
+                    'success': True,
+                    'file_name': file_name,
+                    'file_id': file_id,
+                    'size': file_size,
+                    'size_formatted': self._format_size(file_size),
+                    'remote_path': remote_path,
+                    'skipped': True,
+                    'reason': 'File already exists in backup'
+                }
             
             # Download from Google Drive
             logger.info(f"Downloading from Google Drive...")
@@ -114,12 +136,6 @@ class SyncService:
                 }
             
             local_path = download_result['file_path']
-            
-            # Determine S3 path - preserve full Drive hierarchy
-            if remote_path is None:
-                drive_path = self.get_file_path_in_drive(file_id)
-                remote_path = f"google-drive/{drive_path}"
-                logger.info(f"Preserving Drive hierarchy: {remote_path}")
             
             # Upload to S3 via rclone
             logger.info(f"Uploading to S3...")
@@ -140,7 +156,8 @@ class SyncService:
                     'file_id': file_id,
                     'size': upload_result['size'],
                     'size_formatted': upload_result['size_formatted'],
-                    'remote_path': upload_result['remote_path']
+                    'remote_path': upload_result['remote_path'],
+                    'skipped': False
                 }
             else:
                 return {
@@ -172,6 +189,7 @@ class SyncService:
         results = []
         success_count = 0
         error_count = 0
+        skipped_count = 0
         total_size = 0
         
         for file_id in file_ids:
@@ -181,10 +199,13 @@ class SyncService:
             if result['success']:
                 success_count += 1
                 total_size += result.get('size', 0)
+                if result.get('skipped', False):
+                    skipped_count += 1
             else:
                 error_count += 1
         
-        logger.info(f"Batch sync complete: {success_count} succeeded, {error_count} failed")
+        uploaded_count = success_count - skipped_count
+        logger.info(f"Batch sync complete: {uploaded_count} uploaded, {skipped_count} skipped, {error_count} failed")
         
         return {
             'success': True,
@@ -193,6 +214,8 @@ class SyncService:
                 'total': len(file_ids),
                 'success': success_count,
                 'failed': error_count,
+                'skipped': skipped_count,
+                'uploaded': uploaded_count,
                 'total_size': total_size,
                 'total_size_formatted': self._format_size(total_size)
             }
@@ -277,9 +300,12 @@ class SyncService:
             
             # Calculate statistics
             success_count = sum(1 for r in results if r.get('success'))
+            skipped_count = sum(1 for r in results if r.get('success') and r.get('skipped', False))
+            uploaded_count = success_count - skipped_count
+            failed_count = len(results) - success_count
             total_size = sum(r.get('size', 0) for r in results if r.get('success'))
             
-            logger.info(f"Folder sync complete: {success_count}/{len(results)} files synced")
+            logger.info(f"Folder sync complete: {uploaded_count} uploaded, {skipped_count} skipped, {failed_count} failed")
             
             return {
                 'success': True,
@@ -288,7 +314,9 @@ class SyncService:
                 'statistics': {
                     'total': len(results),
                     'success': success_count,
-                    'failed': len(results) - success_count,
+                    'failed': failed_count,
+                    'skipped': skipped_count,
+                    'uploaded': uploaded_count,
                     'total_size': total_size,
                     'total_size_formatted': self._format_size(total_size)
                 }

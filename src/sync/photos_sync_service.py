@@ -61,6 +61,30 @@ class PhotosSyncService:
             
             logger.info(f"Syncing media: {filename}")
             
+            # Determine S3 path
+            if remote_path is None:
+                # Organize by date: google-photos/YYYY/MM/DD/filename
+                remote_path = self._build_date_organized_path(metadata, filename)
+                logger.info(f"Using date-organized path: {remote_path}")
+            
+            # Check if file already exists in S3
+            # Note: We don't have accurate file size from Google Photos API, so we only check existence
+            exists, existing_size = self.rclone_manager.check_file_exists(remote_path)
+            if exists:
+                logger.info(f"Media already exists in backup, skipping: {filename}")
+                return {
+                    'success': True,
+                    'filename': filename,
+                    'media_id': media_id,
+                    'size': existing_size or 0,
+                    'size_formatted': self._format_size(existing_size or 0),
+                    'remote_path': remote_path,
+                    'media_type': metadata['media_type'],
+                    'creation_time': metadata['creation_time'],
+                    'skipped': True,
+                    'reason': 'Media already exists in backup'
+                }
+            
             # Download from Google Photos
             logger.info(f"Downloading from Google Photos...")
             download_result = self.photos_manager.download_media_item(media_id, self.temp_dir)
@@ -73,12 +97,6 @@ class PhotosSyncService:
                 }
             
             local_path = download_result['file_path']
-            
-            # Determine S3 path
-            if remote_path is None:
-                # Organize by date: google-photos/YYYY/MM/DD/filename
-                remote_path = self._build_date_organized_path(metadata, filename)
-                logger.info(f"Using date-organized path: {remote_path}")
             
             # Upload to S3 via rclone
             logger.info(f"Uploading to S3...")
@@ -101,7 +119,8 @@ class PhotosSyncService:
                     'size_formatted': upload_result['size_formatted'],
                     'remote_path': upload_result['remote_path'],
                     'media_type': metadata['media_type'],
-                    'creation_time': metadata['creation_time']
+                    'creation_time': metadata['creation_time'],
+                    'skipped': False
                 }
             else:
                 return {

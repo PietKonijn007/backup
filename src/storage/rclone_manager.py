@@ -267,28 +267,40 @@ class RcloneManager:
             logger.error(f"Error listing files: {e}")
             return {'success': False, 'error': str(e)}
     
-    def check_file_exists(self, remote_path: str) -> bool:
+    def check_file_exists(self, remote_path: str) -> Tuple[bool, Optional[int]]:
         """
-        Check if a file exists in S3
+        Check if a file exists in S3 and get its size
         
         Args:
             remote_path: Remote file path
             
         Returns:
-            bool: True if file exists
+            tuple: (exists: bool, size: Optional[int]) - True if file exists, and its size in bytes
         """
         try:
             bucket = self.aws_config.get('bucket', 'my-backup-bucket')
             s3_path = f"{self.remote_name}:{bucket}/{remote_path}"
             
-            cmd = ['rclone', 'lsf', s3_path]
+            # Use lsjson to get file details including size
+            cmd = ['rclone', 'lsjson', s3_path]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
             
-            return result.returncode == 0 and len(result.stdout.strip()) > 0
+            if result.returncode == 0 and result.stdout.strip():
+                try:
+                    files = json.loads(result.stdout)
+                    if files and len(files) > 0:
+                        # File exists, return True and its size
+                        size = files[0].get('Size', 0)
+                        logger.debug(f"File exists in S3: {remote_path} (size: {self._format_size(size)})")
+                        return True, size
+                except json.JSONDecodeError:
+                    pass
+            
+            return False, None
                 
         except Exception as e:
             logger.error(f"Error checking file existence: {e}")
-            return False
+            return False, None
     
     def get_bucket_size(self) -> Dict:
         """
