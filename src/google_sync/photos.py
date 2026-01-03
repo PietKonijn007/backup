@@ -1,6 +1,13 @@
 """
-Google Photos API Integration
-Handles listing, downloading, and syncing photos/videos from Google Photos
+Google Photos API Integration - DEPRECATED
+⚠️ THIS MODULE IS NO LONGER FUNCTIONAL ⚠️
+
+Google deprecated the Photos Library API on March 31, 2025.
+The new Photos Picker API does not support automated backup use cases.
+
+For alternative solutions, see: GOOGLE_PHOTOS_API_DEPRECATION.md
+
+This file is kept for reference only.
 """
 import os
 import io

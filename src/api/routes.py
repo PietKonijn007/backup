@@ -494,3 +494,8 @@ def get_folder_contents(folder_id):
             'success': False,
             'error': str(e)
         }), 500
+
+
+# Google Photos API Routes - REMOVED
+# Google deprecated the Photos Library API on March 31, 2025
+# For alternative backup solutions, see: GOOGLE_PHOTOS_API_DEPRECATION.md

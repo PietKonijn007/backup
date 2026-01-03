@@ -13,10 +13,10 @@ from src.utils.logger import setup_logger
 
 logger = setup_logger('google-oauth')
 
-# OAuth 2.0 scopes needed for Drive and Photos
+# OAuth 2.0 scopes needed for Drive
+# NOTE: Google Photos removed due to API deprecation (March 31, 2025)
 SCOPES = [
     'https://www.googleapis.com/auth/drive.readonly',
-    'https://www.googleapis.com/auth/photoslibrary.readonly',
     'https://www.googleapis.com/auth/userinfo.email',
     'https://www.googleapis.com/auth/userinfo.profile'
 ]
@@ -28,18 +28,18 @@ CREDENTIALS_FILE = 'credentials.json'
 class GoogleOAuthManager:
     """Manages Google OAuth 2.0 authentication and token lifecycle"""
     
-    def __init__(self, client_id=None, client_secret=None, redirect_uri='http://localhost:8080/oauth2callback'):
+    def __init__(self, client_id=None, client_secret=None, redirect_uri=None):
         """
         Initialize OAuth manager
         
         Args:
             client_id: Google OAuth client ID (from .env or Google Console)
             client_secret: Google OAuth client secret
-            redirect_uri: OAuth callback URL
+            redirect_uri: OAuth callback URL (from .env OAUTH_REDIRECT_URI or defaults to localhost)
         """
         self.client_id = client_id or os.getenv('GOOGLE_CLIENT_ID')
         self.client_secret = client_secret or os.getenv('GOOGLE_CLIENT_SECRET')
-        self.redirect_uri = redirect_uri
+        self.redirect_uri = redirect_uri or os.getenv('OAUTH_REDIRECT_URI', 'http://localhost:8080/oauth2callback')
         self.credentials = None
         
         # Load existing credentials if available

@@ -3,10 +3,12 @@
 ## 1. Overview
 
 ### Purpose
-A robust backup and synchronization application that automatically syncs files and photos from Google services (Google Drive and Google Photos) to multiple cloud storage providers for redundancy and geographic distribution.
+A robust backup and synchronization application that automatically syncs files from Google Drive to multiple cloud storage providers for redundancy and geographic distribution.
+
+**Note:** Google Photos backup removed due to API deprecation (March 31, 2025). See `GOOGLE_PHOTOS_API_DEPRECATION.md` for details.
 
 ### Goals
-- Automated backup of Google Drive files and Google Photos
+- Automated backup of Google Drive files
 - Multi-cloud redundancy (AWS S3 + European cloud provider)
 - Reliable synchronization with conflict resolution
 - Cost-effective storage management
@@ -34,11 +36,10 @@ A robust backup and synchronization application that automatically syncs files a
 
 **Export Rationale**: Microsoft Office formats provide the best compatibility for offline viewing, editing, and long-term archival across different platforms and applications.
 
-### 2.2 Google Photos
-- **Content**: All photos and videos in user's library
-- **Organization**: Albums, metadata, EXIF data
-- **Original Quality**: Download original quality files (not compressed versions)
-- **Metadata Preservation**: Dates, locations, descriptions, tags
+### 2.2 Google Photos - REMOVED
+**Note:** Google Photos backup functionality was removed due to Google's deprecation of the Photos Library API on March 31, 2025. The new Photos Picker API does not support automated backup use cases.
+
+**For alternative solutions, see:** `GOOGLE_PHOTOS_API_DEPRECATION.md`
 
 ## 3. Destination Storage
 
