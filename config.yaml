@@ -16,9 +16,14 @@ destinations:
     bucket: hofkens-backup
     region: us-east-1
     storage_class: INTELLIGENT_TIERING
+  
+  backblaze_b2:
+    enabled: true
+    bucket: hofkens-backup
+    # B2 doesn't use regions - bucket location set during creation
     
   eu_provider:
-    enabled: true
+    enabled: false
     type: scaleway
     bucket: my-backup-bucket-eu
     region: fr-par

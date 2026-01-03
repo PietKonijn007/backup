@@ -6,14 +6,15 @@ import tempfile
 from pathlib import Path
 from typing import Dict, List
 from src.google_sync.drive import create_drive_manager
-from src.storage.rclone_manager import create_rclone_manager
+from src.storage.storage_manager import create_storage_manager
+from src.database import folder_policies
 from src.utils.logger import setup_logger
 
 logger = setup_logger('sync-service')
 
 
 class SyncService:
-    """Manages syncing files from Google Drive to AWS S3"""
+    """Manages syncing files from Google Drive to cloud storage destinations"""
     
     def __init__(self, config, google_credentials):
         """
@@ -25,12 +26,13 @@ class SyncService:
         """
         self.config = config
         self.drive_manager = create_drive_manager(google_credentials)
-        self.rclone_manager = create_rclone_manager(config)
+        self.storage_manager = create_storage_manager(config)
         self.temp_dir = config.get('sync', {}).get('temp_dir', '/tmp/backup-sync')
         
         # Create temp directory
         Path(self.temp_dir).mkdir(parents=True, exist_ok=True)
         logger.info(f"Sync service initialized with temp dir: {self.temp_dir}")
+        logger.info(f"Available destinations: {self.storage_manager.get_available_destinations()}")
     
     def get_file_path_in_drive(self, file_id: str) -> str:
         """
@@ -82,16 +84,17 @@ class SyncService:
             # Fallback to just the filename
             return metadata.get('name', file_id)
     
-    def sync_file(self, file_id: str, remote_path: str = None) -> Dict:
+    def sync_file(self, file_id: str, remote_path: str = None, destinations: List[str] = None) -> Dict:
         """
-        Sync a single file from Google Drive to S3, preserving folder hierarchy
+        Sync a single file from Google Drive to cloud storage destinations
         
         Args:
             file_id: Google Drive file ID
-            remote_path: Optional S3 path (if None, preserves Drive hierarchy)
+            remote_path: Optional remote path (if None, preserves Drive hierarchy)
+            destinations: List of destination keys (if None, uses folder policy)
             
         Returns:
-            dict: Sync result
+            dict: Sync result with per-destination status
         """
         try:
             logger.info(f"Starting sync for file ID: {file_id}")
@@ -103,16 +106,36 @@ class SyncService:
             
             logger.info(f"Syncing file: {file_name} (size: {self._format_size(file_size)})")
             
-            # Determine S3 path - preserve full Drive hierarchy
+            # Determine remote path - preserve full Drive hierarchy
             if remote_path is None:
                 drive_path = self.get_file_path_in_drive(file_id)
                 remote_path = f"google-drive/{drive_path}"
                 logger.info(f"Preserving Drive hierarchy: {remote_path}")
             
-            # Check if file already exists in S3
-            exists, existing_size = self.rclone_manager.check_file_exists(remote_path)
-            if exists and existing_size == file_size:
-                logger.info(f"File already exists in backup with same size, skipping: {file_name}")
+            # Determine destinations from folder policy if not specified
+            if destinations is None:
+                destinations = folder_policies.get_destinations_for_file(remote_path)
+                if not destinations:
+                    logger.warning(f"No folder policy found for {remote_path}, skipping")
+                    return {
+                        'success': False,
+                        'file_name': file_name,
+                        'file_id': file_id,
+                        'skipped': True,
+                        'reason': 'No folder policy configured for this file'
+                    }
+                logger.info(f"Using destinations from folder policy: {destinations}")
+            
+            # Check if file already exists in all destinations with same size
+            all_exist = True
+            for dest in destinations:
+                exists, existing_size = self.storage_manager.check_file_exists(remote_path, dest)
+                if not exists or existing_size != file_size:
+                    all_exist = False
+                    break
+            
+            if all_exist:
+                logger.info(f"File already exists in all destinations with same size, skipping: {file_name}")
                 return {
                     'success': True,
                     'file_name': file_name,
@@ -120,8 +143,9 @@ class SyncService:
                     'size': file_size,
                     'size_formatted': self._format_size(file_size),
                     'remote_path': remote_path,
+                    'destinations': {dest: {'success': True, 'skipped': True} for dest in destinations},
                     'skipped': True,
-                    'reason': 'File already exists in backup'
+                    'reason': 'File already exists in all destinations'
                 }
             
             # Download from Google Drive
@@ -137,9 +161,21 @@ class SyncService:
             
             local_path = download_result['file_path']
             
-            # Upload to S3 via rclone
-            logger.info(f"Uploading to S3...")
-            upload_result = self.rclone_manager.upload_file(local_path, remote_path)
+            # Upload to designated destinations via storage manager
+            logger.info(f"Uploading to destinations: {destinations}")
+            upload_result = self.storage_manager.upload_file(local_path, remote_path, destinations=destinations)
+            
+            # Update database per destination
+            for dest, dest_result in upload_result['destinations'].items():
+                status = 'synced' if dest_result.get('success') else 'failed'
+                folder_policies.update_file_destination_status(
+                    file_id=file_id,
+                    destination=dest,
+                    status=status,
+                    remote_path=dest_result.get('remote_path'),
+                    size=dest_result.get('size'),
+                    error_message=dest_result.get('error')
+                )
             
             # Clean up local file
             try:
@@ -149,21 +185,24 @@ class SyncService:
                 logger.warning(f"Failed to clean up temp file: {e}")
             
             if upload_result['success']:
-                logger.info(f"Successfully synced {file_name} to S3")
+                logger.info(f"Successfully synced {file_name} to destinations")
                 return {
                     'success': True,
+                    'all_success': upload_result['all_success'],
                     'file_name': file_name,
                     'file_id': file_id,
-                    'size': upload_result['size'],
-                    'size_formatted': upload_result['size_formatted'],
-                    'remote_path': upload_result['remote_path'],
+                    'size': file_size,
+                    'size_formatted': self._format_size(file_size),
+                    'remote_path': remote_path,
+                    'destinations': upload_result['destinations'],
                     'skipped': False
                 }
             else:
                 return {
                     'success': False,
-                    'error': f"Upload failed: {upload_result.get('error')}",
-                    'file_name': file_name
+                    'error': f"Upload failed to all destinations",
+                    'file_name': file_name,
+                    'destinations': upload_result['destinations']
                 }
                 
         except Exception as e:

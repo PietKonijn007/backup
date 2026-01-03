@@ -37,6 +37,19 @@
             max-height: 70vh;
             overflow-y: auto;
         }
+        .tree-header {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            background: #f8f9fa;
+            border-bottom: 2px solid #dee2e6;
+            font-weight: 600;
+            font-size: 13px;
+            color: #495057;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
         .tree-node {
             padding: 8px 12px;
             margin: 2px 0;
@@ -44,20 +57,60 @@
             transition: all 0.2s ease;
             display: flex;
             align-items: center;
-            cursor: pointer;
             user-select: none;
         }
         .tree-node:hover {
             background: #f8f9fa;
         }
-        .tree-node.selected {
-            background: #e3f2fd;
-        }
-        .tree-node-content {
+        .tree-node-main {
             display: flex;
             align-items: center;
             flex: 1;
             gap: 10px;
+            min-width: 0;
+        }
+        .tree-node-destinations {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-left: auto;
+            padding-left: 20px;
+        }
+        .dest-checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 4px;
+            background: #f8f9fa;
+            transition: all 0.2s;
+        }
+        .dest-checkbox-group:hover {
+            background: #e9ecef;
+        }
+        .dest-checkbox-group.active {
+            background: #e3f2fd;
+        }
+        .dest-checkbox-group input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+        .dest-checkbox-group label {
+            margin: 0;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .dest-icon-aws {
+            color: #FF9900;
+        }
+        .dest-icon-b2 {
+            color: #0091DA;
         }
         .tree-indent {
             display: inline-block;
@@ -103,30 +156,20 @@
         .file-icon.video { background: linear-gradient(135deg, #AB47BC 0%, #8E24AA 100%); color: white; }
         .file-icon.pdf { background: linear-gradient(135deg, #EF5350 0%, #E53935 100%); color: white; }
         .file-icon.default { background: linear-gradient(135deg, #78909C 0%, #546E7A 100%); color: white; }
-        .file-checkbox {
-            width: 18px;
-            height: 18px;
-            cursor: pointer;
-            flex-shrink: 0;
-        }
         .file-name {
             font-size: 14px;
             font-weight: 500;
             color: #333;
             flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
         .file-meta {
             font-size: 12px;
             color: #6c757d;
-            margin-left: auto;
-        }
-        .badge-auto-sync {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            font-size: 10px;
-            padding: 3px 8px;
-            border-radius: 10px;
-            margin-left: 8px;
+            margin-left: 10px;
         }
         .badge-synced {
             background: linear-gradient(135deg, #66BB6A 0%, #43A047 100%);
@@ -147,9 +190,6 @@
             align-items: center;
             justify-content: center;
             z-index: 9999;
-        }
-        .loading-content {
-            text-align: center;
         }
         .loading-spinner {
             width: 60px;
@@ -172,15 +212,6 @@
             margin-bottom: 20px;
         }
         .progress { height: 10px; border-radius: 10px; }
-        .selection-bar {
-            background: #f8f9fa;
-            border-bottom: 1px solid #dee2e6;
-            padding: 15px 20px;
-            display: none;
-        }
-        .selection-bar.show {
-            display: block;
-        }
     </style>
 </head>
 <body>
@@ -197,7 +228,6 @@
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item"><a class="nav-link" href="/">Dashboard</a></li>
                     <li class="nav-item"><a class="nav-link active" href="/files">Files</a></li>
-                    <!-- Photos removed - API deprecated March 31, 2025 -->
                     <li class="nav-item"><a class="nav-link" href="/logs">Logs</a></li>
                     <li class="nav-item"><a class="nav-link" href="/settings">Settings</a></li>
                 </ul>
@@ -240,8 +270,8 @@
             <div class="files-header">
                 <div class="row align-items-center">
                     <div class="col-md-8">
-                        <h2><i class="bi bi-folder2-open"></i> Google Drive Tree View</h2>
-                        <p class="mb-0">Complete hierarchical view of your Google Drive - Check folders/files to sync to AWS S3</p>
+                        <h2><i class="bi bi-folder2-open"></i> Google Drive - Backup Configuration</h2>
+                        <p class="mb-0">Check AWS S3 and/or Backblaze B2 for each folder to configure backup destinations</p>
                     </div>
                     <div class="col-md-4 text-end">
                         <button class="btn btn-light" onclick="expandAll()">
@@ -249,21 +279,6 @@
                         </button>
                         <button class="btn btn-light" onclick="collapseAll()">
                             <i class="bi bi-arrows-collapse"></i> Collapse All
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Selection Bar -->
-            <div class="selection-bar" id="selectionBar">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <strong><span id="selectionCount">0</span></strong> items selected for auto-sync
-                        <button class="btn btn-sm btn-link" onclick="clearSelection()">Clear</button>
-                    </div>
-                    <div>
-                        <button class="btn btn-primary" onclick="saveConfiguration()">
-                            <i class="bi bi-check-circle"></i> Save Configuration
                         </button>
                     </div>
                 </div>
@@ -293,26 +308,26 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         let driveTree = [];
-        let configuredItems = new Set();
+        let folderPolicies = {};  // Map of folder_id -> {destinations: [...]}
         let syncStatusMap = {};
-        let selectedFiles = new Set();
 
-        // Load configured items
-        async function loadConfiguredItems() {
+        // Load folder policies
+        async function loadFolderPolicies() {
             try {
-                const response = await fetch('/api/sync/config');
+                const response = await fetch('/api/folders/policies');
                 const data = await response.json();
                 
                 if (data.success) {
-                    configuredItems.clear();
-                    data.items.forEach(item => {
-                        configuredItems.add(item.item_id);
-                        selectedFiles.add(item.item_id);
+                    folderPolicies = {};
+                    data.policies.forEach(policy => {
+                        folderPolicies[policy.folder_id] = {
+                            destinations: policy.destinations || []
+                        };
                     });
-                    console.log(`Loaded ${data.items.length} configured items`);
+                    console.log(`Loaded ${data.policies.length} folder policies`);
                 }
             } catch (error) {
-                console.error('Error loading configured items:', error);
+                console.error('Error loading folder policies:', error);
             }
         }
 
@@ -324,7 +339,6 @@
                 
                 if (data.success) {
                     syncStatusMap = data.status_map;
-                    console.log(`Loaded sync status for ${Object.keys(syncStatusMap).length} files`);
                 }
             } catch (error) {
                 console.error('Error loading sync status:', error);
@@ -389,23 +403,45 @@
         // Render tree structure
         function renderTree() {
             const container = document.getElementById('treeContainer');
-            container.innerHTML = renderNodes(driveTree, 0);
-            updateSelectionBar();
+            
+            // Add header
+            let html = `
+                <div class="tree-header">
+                    <div style="flex: 1;">File / Folder</div>
+                    <div style="display: flex; gap: 20px;">
+                        <div style="width: 100px; text-align: center;">
+                            <i class="bi bi-amazon dest-icon-aws"></i> AWS S3
+                        </div>
+                        <div style="width: 100px; text-align: center;">
+                            <i class="bi bi-cloud-fill dest-icon-b2"></i> B2
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            html += renderNodes(driveTree, 0);
+            container.innerHTML = html;
         }
 
-        // Track parent path for inheritance
-        let currentPath = [];
-        
-        // Check if node is inherited (parent is selected)
-        function hasSelectedParent(path) {
-            for (const parentId of path) {
-                if (configuredItems.has(parentId)) {
-                    return parentId;
+        // Check if folder has policy with destination (check parents for inheritance)
+        function hasDestination(folderId, destination, parentPath = []) {
+            // If folder has explicit policy, use ONLY that (no inheritance)
+            const policy = folderPolicies[folderId];
+            if (policy) {
+                return policy.destinations.includes(destination);
+            }
+            
+            // No explicit policy - check parent folders for inheritance
+            for (const parentId of parentPath) {
+                const parentPolicy = folderPolicies[parentId];
+                if (parentPolicy && parentPolicy.destinations.includes(destination)) {
+                    return true;
                 }
             }
-            return null;
+            
+            return false;
         }
-        
+
         // Render tree nodes recursively
         function renderNodes(nodes, level, parentPath = []) {
             if (!nodes || nodes.length === 0) return '';
@@ -415,43 +451,28 @@
             for (const node of nodes) {
                 const isFolder = node.type === 'folder';
                 const hasChildren = isFolder && (node.hasChildren || (node.children && node.children.length > 0));
-                const isConfigured = configuredItems.has(node.id);
-                const selectedParent = hasSelectedParent(parentPath);
-                const isExcluded = excludedItems.has(node.id);
-                const isInherited = !isConfigured && !isExcluded && selectedParent !== null;
                 const syncStatus = syncStatusMap[node.id];
                 const indent = '  '.repeat(level);
                 
-                // Determine if checkbox should be checked
-                const isChecked = isExcluded ? false : (isConfigured || isInherited);
+                // Check if this folder has destinations configured (includes inheritance)
+                const hasAWS = isFolder && hasDestination(node.id, 'aws_s3', parentPath);
+                const hasB2 = isFolder && hasDestination(node.id, 'backblaze_b2', parentPath);
                 
                 // Build badges
                 let badges = '';
-                if (isConfigured) {
-                    badges += '<span class="badge-auto-sync"><i class="bi bi-arrow-repeat"></i> Auto-Sync</span>';
-                } else if (isExcluded) {
-                    badges += '<span class="badge-auto-sync" style="background: linear-gradient(135deg, #EF5350 0%, #E53935 100%);"><i class="bi bi-x-circle"></i> Excluded</span>';
-                } else if (isInherited) {
-                    badges += '<span class="badge-auto-sync" style="opacity: 0.7;"><i class="bi bi-arrow-down-circle"></i> Inherited</span>';
-                }
-                if (syncStatus && syncStatus.status === 'synced' && !isExcluded) {
+                if (syncStatus && syncStatus.status === 'synced') {
                     badges += '<span class="badge-synced"><i class="bi bi-check-circle"></i> Synced</span>';
                 }
                 
                 html += `
-                    <div class="tree-node ${isChecked ? 'selected' : ''}" data-node-id="${node.id}" data-inherited="${isInherited}">
-                        <div class="tree-node-content">
+                    <div class="tree-node" data-node-id="${node.id}">
+                        <div class="tree-node-main">
                             ${indent}
                             ${hasChildren ? `
                                 <div class="tree-expand collapsed" onclick="toggleNode(event, '${node.id}', ${node.childrenLoaded || false})">
                                     <i class="bi bi-chevron-down"></i>
                                 </div>
                             ` : '<span class="tree-indent"></span>'}
-                            <input type="checkbox" class="file-checkbox" 
-                                   ${isChecked ? 'checked' : ''}
-                                   data-inherited="${isInherited}"
-                                   onchange="toggleSelection(event, '${node.id}', ${isFolder}, '${selectedParent || ''}')"
-                                   onclick="event.stopPropagation()">
                             <div class="file-icon ${getIconClass(node)}">
                                 ${getIcon(node)}
                             </div>
@@ -465,6 +486,28 @@
                                 </div>
                             `}
                         </div>
+                        ${isFolder ? `
+                            <div class="tree-node-destinations">
+                                <div class="dest-checkbox-group ${hasAWS ? 'active' : ''}" onclick="event.stopPropagation()">
+                                    <input type="checkbox" 
+                                           id="aws-${node.id}" 
+                                           ${hasAWS ? 'checked' : ''}
+                                           onchange="toggleDestination('${node.id}', '${escapeHtml(node.name)}', 'aws_s3', this.checked)">
+                                    <label for="aws-${node.id}">
+                                        <i class="bi bi-amazon dest-icon-aws"></i> S3
+                                    </label>
+                                </div>
+                                <div class="dest-checkbox-group ${hasB2 ? 'active' : ''}" onclick="event.stopPropagation()">
+                                    <input type="checkbox" 
+                                           id="b2-${node.id}" 
+                                           ${hasB2 ? 'checked' : ''}
+                                           onchange="toggleDestination('${node.id}', '${escapeHtml(node.name)}', 'backblaze_b2', this.checked)">
+                                    <label for="b2-${node.id}">
+                                        <i class="bi bi-cloud-fill dest-icon-b2"></i> B2
+                                    </label>
+                                </div>
+                            </div>
+                        ` : ''}
                     </div>
                 `;
                 
@@ -483,6 +526,114 @@
             return html;
         }
 
+        // Track expanded nodes
+        let expandedNodes = new Set();
+        
+        // Toggle destination for a folder - SIMPLIFIED
+        async function toggleDestination(folderId, folderName, destination, enabled) {
+            try {
+                // Get parent path to check what this folder currently inherits
+                const parentPath = getParentPath(folderId);
+                const currentlyHasAWS = hasDestination(folderId, 'aws_s3', parentPath);
+                const currentlyHasB2 = hasDestination(folderId, 'backblaze_b2', parentPath);
+                
+                // Determine what explicit policy we need to create
+                let newDests = [];
+                
+                // If folder doesn't have explicit policy, base on current effective state
+                if (!folderPolicies[folderId]) {
+                    if (currentlyHasAWS) newDests.push('aws_s3');
+                    if (currentlyHasB2) newDests.push('backblaze_b2');
+                } else {
+                    // Start with explicit policy
+                    newDests = [...folderPolicies[folderId].destinations];
+                }
+                
+                // Update based on toggle
+                if (enabled) {
+                    if (!newDests.includes(destination)) {
+                        newDests.push(destination);
+                    }
+                } else {
+                    newDests = newDests.filter(d => d !== destination);
+                }
+                
+                // Now we have explicit override - save or delete policy
+                if (newDests.length === 0) {
+                    // No destinations - remove policy (will inherit parent if available)
+                    if (folderPolicies[folderId]) {
+                        const response = await fetch(`/api/folders/policies/${folderId}`, {
+                            method: 'DELETE'
+                        });
+                        
+                        if (response.ok) {
+                            delete folderPolicies[folderId];
+                            console.log(`Removed policy for ${folderName}`);
+                        }
+                    }
+                } else {
+                    // Create explicit policy with these destinations
+                    const method = folderPolicies[folderId] ? 'PUT' : 'POST';
+                    const url = folderPolicies[folderId] 
+                        ? `/api/folders/policies/${folderId}`
+                        : '/api/folders/policies';
+                    
+                    const body = {
+                        folder_id: folderId,
+                        folder_name: folderName,
+                        folder_path: folderName,
+                        destinations: newDests
+                    };
+                    
+                    const response = await fetch(url, {
+                        method: method,
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body)
+                    });
+                    
+                    if (response.ok) {
+                        folderPolicies[folderId] = { destinations: newDests };
+                        const destName = destination === 'aws_s3' ? 'AWS S3' : 'Backblaze B2';
+                        console.log(`${enabled ? 'Added' : 'Removed'} ${destName} for ${folderName}`);
+                    }
+                }
+                
+                // Save expanded state
+                saveExpandedState();
+                
+                // Re-render tree to update all children states
+                renderTree();
+                
+                // Restore expanded state
+                restoreExpandedState();
+                
+            } catch (error) {
+                console.error('Error toggling destination:', error);
+                alert('Error updating backup configuration: ' + error.message);
+            }
+        }
+        
+        // Save which nodes are expanded
+        function saveExpandedState() {
+            expandedNodes.clear();
+            document.querySelectorAll('.tree-children:not(.collapsed)').forEach(el => {
+                const nodeId = el.id.replace('children-', '');
+                expandedNodes.add(nodeId);
+            });
+        }
+        
+        // Restore expanded state after re-render
+        function restoreExpandedState() {
+            expandedNodes.forEach(nodeId => {
+                const childrenDiv = document.getElementById(`children-${nodeId}`);
+                const expandIcon = document.querySelector(`[onclick*="'${nodeId}'"]`);
+                if (childrenDiv && expandIcon) {
+                    childrenDiv.classList.remove('collapsed');
+                    expandIcon.classList.remove('collapsed');
+                }
+            });
+        }
+
         // Toggle node expansion with lazy loading
         async function toggleNode(event, nodeId, childrenLoaded) {
             event.stopPropagation();
@@ -490,29 +641,26 @@
             const expandIcon = event.currentTarget;
             
             if (childrenDiv.classList.contains('collapsed')) {
+                // Track that this node is expanded
+                expandedNodes.add(nodeId);
+                
                 // Expanding - load children if not loaded yet
                 if (!childrenLoaded && childrenDiv.dataset.loaded === 'false') {
-                    // Show loading indicator
                     expandIcon.innerHTML = '<i class="bi bi-hourglass-split"></i>';
                     
                     try {
-                        // Fetch children from server
                         const response = await fetch(`/api/drive/folder/${nodeId}`);
                         const data = await response.json();
                         
                         if (data.success && data.children) {
-                            // Find the node in tree and update it
                             const node = findNodeById(driveTree, nodeId);
                             if (node) {
                                 node.children = data.children;
                                 node.childrenLoaded = true;
                             }
                             
-                            // Re-render this node's children
-                            const parentNode = document.querySelector(`[data-node-id="${nodeId}"]`);
+                            const level = getNodeLevel(nodeId);
                             const parentPath = getParentPath(nodeId);
-                            const level = parentPath.length;
-                            
                             childrenDiv.innerHTML = renderNodes(data.children, level + 1, [...parentPath, nodeId]);
                             childrenDiv.dataset.loaded = 'true';
                         }
@@ -521,164 +669,62 @@
                         childrenDiv.innerHTML = '<div class="alert alert-danger m-2">Error loading folder contents</div>';
                     }
                     
-                    // Restore expand icon
                     expandIcon.innerHTML = '<i class="bi bi-chevron-down"></i>';
                 }
                 
                 childrenDiv.classList.remove('collapsed');
                 expandIcon.classList.remove('collapsed');
             } else {
+                // Track that this node is collapsed
+                expandedNodes.delete(nodeId);
                 childrenDiv.classList.add('collapsed');
                 expandIcon.classList.add('collapsed');
             }
         }
         
-        // Get parent path for a node
-        function getParentPath(nodeId) {
-            // This is a simplified version - in reality you'd track this properly
-            return [];
+        // Get node level and parent path (helpers)
+        function getNodeLevel(nodeId) {
+            return 0; // Simplified
         }
-
+        
+        function getParentPath(nodeId) {
+            // Build parent path by traversing tree
+            const path = [];
+            findParentPath(driveTree, nodeId, path);
+            return path;
+        }
+        
+        function findParentPath(nodes, targetId, path) {
+            for (const node of nodes) {
+                if (node.id === targetId) {
+                    return true;
+                }
+                if (node.children) {
+                    path.push(node.id);
+                    if (findParentPath(node.children, targetId, path)) {
+                        return true;
+                    }
+                    path.pop();
+                }
+            }
+            return false;
+        }
+        
         // Expand all nodes
         function expandAll() {
             document.querySelectorAll('.tree-children').forEach(el => {
                 el.classList.remove('collapsed');
+                const nodeId = el.id.replace('children-', '');
+                expandedNodes.add(nodeId);
             });
-            document.querySelectorAll('.tree-expand').forEach(el => {
-                el.classList.remove('collapsed');
-            });
+            document.querySelectorAll('.tree-expand').forEach(el => el.classList.remove('collapsed'));
         }
 
         // Collapse all nodes
         function collapseAll() {
-            document.querySelectorAll('.tree-children').forEach(el => {
-                el.classList.add('collapsed');
-            });
-            document.querySelectorAll('.tree-expand').forEach(el => {
-                el.classList.add('collapsed');
-            });
-        }
-
-        // Track exclusions (items explicitly unchecked under a selected parent)
-        let excludedItems = new Set();
-        
-        // Toggle selection
-        function toggleSelection(event, nodeId, isFolder, selectedParent) {
-            event.stopPropagation();
-            
-            const node = document.querySelector(`[data-node-id="${nodeId}"]`);
-            const checkbox = event.target;
-            const isInherited = checkbox.dataset.inherited === 'true';
-            
-            if (checkbox.checked) {
-                // Checking the box
-                if (isInherited) {
-                    // Was inherited, now explicitly including (shouldn't normally happen)
-                    selectedFiles.add(nodeId);
-                    excludedItems.delete(nodeId);
-                } else {
-                    // Normal selection
-                    selectedFiles.add(nodeId);
-                    excludedItems.delete(nodeId);
-                }
-                node.classList.add('selected');
-            } else {
-                // Unchecking the box
-                if (selectedParent) {
-                    // This is under a selected parent - mark as excluded
-                    excludedItems.add(nodeId);
-                    selectedFiles.delete(nodeId);
-                    
-                    // Show feedback that this is now excluded
-                    const badge = node.querySelector('.badge-auto-sync');
-                    if (badge) {
-                        badge.innerHTML = '<i class="bi bi-x-circle"></i> Excluded';
-                        badge.style.background = 'linear-gradient(135deg, #EF5350 0%, #E53935 100%)';
-                    }
-                } else {
-                    // Normal deselection
-                    selectedFiles.delete(nodeId);
-                    excludedItems.delete(nodeId);
-                }
-                node.classList.remove('selected');
-            }
-            
-            updateSelectionBar();
-            
-            // Re-render to update children states
-            renderTree();
-        }
-
-        // Update selection bar
-        function updateSelectionBar() {
-            const count = selectedFiles.size;
-            document.getElementById('selectionCount').textContent = count;
-            const bar = document.getElementById('selectionBar');
-            
-            if (count > 0) {
-                bar.classList.add('show');
-            } else {
-                bar.classList.remove('show');
-            }
-        }
-
-        // Clear selection
-        function clearSelection() {
-            selectedFiles.clear();
-            document.querySelectorAll('.file-checkbox').forEach(cb => cb.checked = false);
-            document.querySelectorAll('.tree-node').forEach(node => node.classList.remove('selected'));
-            updateSelectionBar();
-        }
-
-        // Save configuration
-        async function saveConfiguration() {
-            if (selectedFiles.size === 0) {
-                alert('No items selected');
-                return;
-            }
-            
-            // Find which items need to be added/removed
-            const toAdd = [...selectedFiles].filter(id => !configuredItems.has(id));
-            const toRemove = [...configuredItems].filter(id => !selectedFiles.has(id));
-            
-            try {
-                // Remove unchecked items
-                if (toRemove.length > 0) {
-                    await fetch('/api/sync/config/remove', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ item_ids: toRemove })
-                    });
-                }
-                
-                // Add newly checked items
-                if (toAdd.length > 0) {
-                    const items = toAdd.map(id => {
-                        const node = findNodeById(driveTree, id);
-                        return {
-                            item_id: id,
-                            item_name: node.name,
-                            item_type: node.mimeType || 'file',
-                            is_folder: node.type === 'folder'
-                        };
-                    });
-                    
-                    await fetch('/api/sync/config/add', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ items })
-                    });
-                }
-                
-                // Update configured items
-                await loadConfiguredItems();
-                
-                alert(`✓ Configuration saved!\n\nAdded: ${toAdd.length}\nRemoved: ${toRemove.length}`);
-                
-            } catch (error) {
-                console.error('Error saving configuration:', error);
-                alert('Error saving configuration: ' + error.message);
-            }
+            expandedNodes.clear();
+            document.querySelectorAll('.tree-children').forEach(el => el.classList.add('collapsed'));
+            document.querySelectorAll('.tree-expand').forEach(el => el.classList.add('collapsed'));
         }
 
         // Find node by ID in tree
@@ -729,13 +775,14 @@
         // Initialize
         async function init() {
             await loadStorageInfo();
-            await loadConfiguredItems();
+            await loadFolderPolicies();
             await loadSyncStatus();
             await loadDriveTree();
             
-            // Refresh sync status every 30 seconds
+            // Refresh every 30 seconds
             setInterval(async () => {
                 await loadSyncStatus();
+                await loadFolderPolicies();
                 renderTree();
             }, 30000);
         }

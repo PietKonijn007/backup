@@ -499,3 +499,227 @@ def get_folder_contents(folder_id):
 # Google Photos API Routes - REMOVED
 # Google deprecated the Photos Library API on March 31, 2025
 # For alternative backup solutions, see: GOOGLE_PHOTOS_API_DEPRECATION.md
+
+
+# Folder Policy Management Endpoints
+
+@api_bp.route('/folders/policies', methods=['GET'])
+@login_required
+def get_folder_policies():
+    """Get all folder destination policies"""
+    try:
+        from src.database import folder_policies
+        policies = folder_policies.get_all_folder_policies()
+        return jsonify({
+            'success': True,
+            'policies': policies,
+            'count': len(policies)
+        })
+    except Exception as e:
+        logger.error(f"Error getting folder policies: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/folders/policies', methods=['POST'])
+@login_required
+def add_folder_policy():
+    """Add folder with destination policy"""
+    try:
+        from src.database import folder_policies
+        data = request.get_json()
+        
+        folder_id = data.get('folder_id')
+        folder_name = data.get('folder_name')
+        folder_path = data.get('folder_path', '')
+        destinations = data.get('destinations', [])
+        
+        if not folder_id or not folder_name:
+            return jsonify({
+                'success': False,
+                'error': 'folder_id and folder_name are required'
+            }), 400
+        
+        if not destinations:
+            return jsonify({
+                'success': False,
+                'error': 'At least one destination must be selected'
+            }), 400
+        
+        success = folder_policies.add_folder_policy(
+            folder_id=folder_id,
+            folder_name=folder_name,
+            folder_path=folder_path,
+            destinations=destinations
+        )
+        
+        if success:
+            logger.info(f"Added folder policy: {folder_name} -> {destinations}")
+            return jsonify({
+                'success': True,
+                'message': f'Added folder policy for {folder_name}'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to add folder policy (may already exist)'
+            }), 400
+            
+    except Exception as e:
+        logger.error(f"Error adding folder policy: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/folders/policies/<folder_id>', methods=['PUT'])
+@login_required
+def update_folder_policy(folder_id):
+    """Update folder destinations"""
+    try:
+        from src.database import folder_policies
+        data = request.get_json()
+        
+        destinations = data.get('destinations', [])
+        
+        if not destinations:
+            return jsonify({
+                'success': False,
+                'error': 'At least one destination must be selected'
+            }), 400
+        
+        success = folder_policies.update_folder_policy(
+            folder_id=folder_id,
+            destinations=destinations
+        )
+        
+        if success:
+            logger.info(f"Updated folder policy for {folder_id}: {destinations}")
+            return jsonify({
+                'success': True,
+                'message': 'Folder policy updated successfully'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to update folder policy'
+            }), 400
+            
+    except Exception as e:
+        logger.error(f"Error updating folder policy: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/folders/policies/<folder_id>', methods=['DELETE'])
+@login_required
+def delete_folder_policy(folder_id):
+    """Remove folder policy"""
+    try:
+        from src.database import folder_policies
+        
+        success = folder_policies.remove_folder_policy(folder_id)
+        
+        if success:
+            logger.info(f"Removed folder policy for {folder_id}")
+            return jsonify({
+                'success': True,
+                'message': 'Folder policy removed successfully'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to remove folder policy'
+            }), 400
+            
+    except Exception as e:
+        logger.error(f"Error removing folder policy: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/destinations/available', methods=['GET'])
+@login_required
+def get_available_destinations():
+    """Get list of enabled backup destinations"""
+    try:
+        from src.storage.storage_manager import create_storage_manager
+        
+        config = get_config()
+        storage_mgr = create_storage_manager(config)
+        destinations = storage_mgr.get_available_destinations()
+        
+        # Get human-readable names and icons
+        dest_info = {
+            'aws_s3': {
+                'key': 'aws_s3',
+                'name': 'AWS S3',
+                'icon': 'bi-amazon',
+                'color': 'warning'
+            },
+            'backblaze_b2': {
+                'key': 'backblaze_b2',
+                'name': 'Backblaze B2',
+                'icon': 'bi-cloud',
+                'color': 'info'
+            },
+            'scaleway': {
+                'key': 'scaleway',
+                'name': 'Scaleway',
+                'icon': 'bi-hdd-network',
+                'color': 'secondary'
+            }
+        }
+        
+        result = []
+        for dest in destinations:
+            info = dest_info.get(dest, {
+                'key': dest,
+                'name': dest,
+                'icon': 'bi-cloud',
+                'color': 'secondary'
+            })
+            result.append(info)
+        
+        return jsonify({
+            'success': True,
+            'destinations': result,
+            'count': len(result)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting available destinations: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/files/<file_id>/destinations', methods=['GET'])
+@login_required
+def get_file_destinations(file_id):
+    """Get destination status for a specific file"""
+    try:
+        from src.database import folder_policies
+        
+        destinations = folder_policies.get_file_destinations(file_id)
+        
+        return jsonify({
+            'success': True,
+            'file_id': file_id,
+            'destinations': destinations
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting file destinations: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500

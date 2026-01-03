@@ -71,6 +71,38 @@ def init_db():
         )
     ''')
     
+    # Sync folders table - stores folder-level destination policies
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS sync_folders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            folder_id TEXT UNIQUE NOT NULL,
+            folder_name TEXT NOT NULL,
+            folder_path TEXT,
+            destinations TEXT NOT NULL,
+            recursive BOOLEAN DEFAULT 1,
+            enabled BOOLEAN DEFAULT 1,
+            added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # File destinations table - tracks which destinations have which files
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS file_destinations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            file_id TEXT NOT NULL,
+            destination TEXT NOT NULL,
+            sync_status TEXT DEFAULT 'pending',
+            last_sync TEXT,
+            remote_path TEXT,
+            size INTEGER,
+            error_message TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(file_id, destination)
+        )
+    ''')
+    
     conn.commit()
     conn.close()
 

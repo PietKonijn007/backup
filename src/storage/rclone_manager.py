@@ -13,20 +13,34 @@ logger = setup_logger('rclone')
 
 
 class RcloneManager:
-    """Manages rclone operations for AWS S3"""
+    """Manages rclone operations for cloud storage providers"""
     
-    def __init__(self, config: Dict):
+    def __init__(self, config: Dict, destination_key: str = 'aws_s3', provider: str = 's3'):
         """
-        Initialize rclone manager
+        Initialize rclone manager for a specific destination
         
         Args:
-            config: Configuration dictionary with AWS S3 settings
+            config: Configuration dictionary with all destinations
+            destination_key: Key in config (e.g., 'aws_s3', 'backblaze_b2', 'eu_provider')
+            provider: Rclone provider type ('s3' for AWS/Scaleway, 'b2' for Backblaze)
         """
         self.config = config
-        self.aws_config = config.get('destinations', {}).get('aws_s3', {})
-        self.remote_name = 'aws-s3'
+        self.destination_key = destination_key
+        self.provider = provider
+        self.dest_config = config.get('destinations', {}).get(destination_key, {})
+        self.remote_name = self._get_remote_name()
+        self.bucket_name = self.dest_config.get('bucket', 'my-backup-bucket')
         self._ensure_rclone_installed()
         self._configure_remote()
+    
+    def _get_remote_name(self) -> str:
+        """Generate remote name based on destination"""
+        name_map = {
+            'aws_s3': 'aws-s3',
+            'backblaze_b2': 'backblaze-b2',
+            'eu_provider': 'scaleway-s3'
+        }
+        return name_map.get(self.destination_key, self.destination_key)
     
     def _ensure_rclone_installed(self):
         """Check if rclone is installed"""
@@ -48,7 +62,7 @@ class RcloneManager:
             raise
     
     def _configure_remote(self):
-        """Configure rclone remote for AWS S3"""
+        """Configure rclone remote for the specified provider"""
         try:
             # Check if remote already exists
             result = subprocess.run(['rclone', 'listremotes'], 
@@ -61,31 +75,44 @@ class RcloneManager:
                 logger.info(f"Rclone remote '{self.remote_name}' already configured")
                 return
             
-            # Create remote configuration
-            logger.info(f"Configuring rclone remote '{self.remote_name}' for AWS S3")
+            # Create remote configuration based on provider
+            logger.info(f"Configuring rclone remote '{self.remote_name}' for {self.provider}")
             
-            # Build rclone config command
-            config_commands = [
-                f"rclone config create {self.remote_name} s3",
-                f"provider=AWS",
-                f"access_key_id={os.getenv('AWS_ACCESS_KEY_ID', '')}",
-                f"secret_access_key={os.getenv('AWS_SECRET_ACCESS_KEY', '')}",
-                f"region={self.aws_config.get('region', 'us-east-1')}",
-                f"storage_class={self.aws_config.get('storage_class', 'INTELLIGENT_TIERING')}"
-            ]
-            
-            # Use environment variables for AWS credentials
             env = os.environ.copy()
             
-            # Create config using rclone's config create command
-            cmd = [
-                'rclone', 'config', 'create', self.remote_name, 's3',
-                'provider', 'AWS',
-                'access_key_id', env.get('AWS_ACCESS_KEY_ID', ''),
-                'secret_access_key', env.get('AWS_SECRET_ACCESS_KEY', ''),
-                'region', self.aws_config.get('region', 'us-east-1'),
-                'storage_class', self.aws_config.get('storage_class', 'INTELLIGENT_TIERING')
-            ]
+            if self.provider == 'b2':
+                # Backblaze B2 configuration
+                cmd = [
+                    'rclone', 'config', 'create', self.remote_name, 'b2',
+                    'account', env.get('B2_APPLICATION_KEY_ID', ''),
+                    'key', env.get('B2_APPLICATION_KEY', '')
+                ]
+            elif self.provider == 's3':
+                # S3-compatible configuration (AWS, Scaleway, etc.)
+                if self.destination_key == 'aws_s3':
+                    # AWS S3
+                    cmd = [
+                        'rclone', 'config', 'create', self.remote_name, 's3',
+                        'provider', 'AWS',
+                        'access_key_id', env.get('AWS_ACCESS_KEY_ID', ''),
+                        'secret_access_key', env.get('AWS_SECRET_ACCESS_KEY', ''),
+                        'region', self.dest_config.get('region', 'us-east-1'),
+                        'storage_class', self.dest_config.get('storage_class', 'INTELLIGENT_TIERING')
+                    ]
+                elif self.destination_key == 'eu_provider':
+                    # Scaleway S3
+                    cmd = [
+                        'rclone', 'config', 'create', self.remote_name, 's3',
+                        'provider', 'Other',
+                        'access_key_id', env.get('EU_PROVIDER_ACCESS_KEY', ''),
+                        'secret_access_key', env.get('EU_PROVIDER_SECRET_KEY', ''),
+                        'endpoint', self.dest_config.get('endpoint', ''),
+                        'region', self.dest_config.get('region', 'fr-par')
+                    ]
+                else:
+                    raise ValueError(f"Unknown S3 destination: {self.destination_key}")
+            else:
+                raise ValueError(f"Unsupported provider: {self.provider}")
             
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
             
@@ -118,35 +145,39 @@ class RcloneManager:
             if remote_path is None:
                 remote_path = Path(local_path).name
             
-            # Build S3 path
-            bucket = self.aws_config.get('bucket', 'my-backup-bucket')
-            s3_path = f"{self.remote_name}:{bucket}/{remote_path}"
+            # Build remote path
+            bucket = self.bucket_name
+            remote_full_path = f"{self.remote_name}:{bucket}/{remote_path}"
             
             # Get file size for progress
             file_size = os.path.getsize(local_path)
             
-            logger.info(f"Uploading {local_path} ({self._format_size(file_size)}) to {s3_path}")
+            logger.info(f"Uploading {local_path} ({self._format_size(file_size)}) to {remote_full_path}")
             
-            # Upload with rclone copy (with progress and stats)
+            # Upload with rclone copyto (to specify exact destination path, not directory)
             cmd = [
-                'rclone', 'copy',
+                'rclone', 'copyto',
                 local_path,
-                s3_path,
+                remote_full_path,
                 '--progress',
                 '--stats', '5s',
                 '--transfers', '4',
-                '--checkers', '8',
-                '--s3-storage-class', self.aws_config.get('storage_class', 'INTELLIGENT_TIERING')
+                '--checkers', '8'
             ]
+            
+            # Add S3-specific storage class if applicable
+            if self.provider == 's3' and self.destination_key == 'aws_s3':
+                storage_class = self.dest_config.get('storage_class', 'INTELLIGENT_TIERING')
+                cmd.extend(['--s3-storage-class', storage_class])
             
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
             
             if result.returncode == 0:
-                logger.info(f"Successfully uploaded {local_path} to S3")
+                logger.info(f"Successfully uploaded {local_path}")
                 return {
                     'success': True,
                     'local_path': local_path,
-                    'remote_path': s3_path,
+                    'remote_path': remote_full_path,
                     'size': file_size,
                     'size_formatted': self._format_size(file_size)
                 }
@@ -168,11 +199,11 @@ class RcloneManager:
     
     def upload_directory(self, local_dir: str, remote_dir: str = None) -> Dict:
         """
-        Upload a directory to AWS S3
+        Upload a directory to cloud storage
         
         Args:
             local_dir: Local directory path
-            remote_dir: Remote directory path in S3 (optional)
+            remote_dir: Remote directory path (optional)
             
         Returns:
             dict: Upload result with success status and statistics
@@ -185,24 +216,28 @@ class RcloneManager:
             if remote_dir is None:
                 remote_dir = Path(local_dir).name
             
-            # Build S3 path
-            bucket = self.aws_config.get('bucket', 'my-backup-bucket')
-            s3_path = f"{self.remote_name}:{bucket}/{remote_dir}"
+            # Build remote path
+            bucket = self.bucket_name
+            remote_full_path = f"{self.remote_name}:{bucket}/{remote_dir}"
             
-            logger.info(f"Uploading directory {local_dir} to {s3_path}")
+            logger.info(f"Uploading directory {local_dir} to {remote_full_path}")
             
             # Sync with rclone (more efficient for directories)
             cmd = [
                 'rclone', 'sync',
                 local_dir,
-                s3_path,
+                remote_full_path,
                 '--progress',
                 '--stats', '10s',
                 '--transfers', '4',
                 '--checkers', '8',
-                '--s3-storage-class', self.aws_config.get('storage_class', 'INTELLIGENT_TIERING'),
                 '--create-empty-src-dirs'
             ]
+            
+            # Add S3-specific storage class if applicable
+            if self.provider == 's3' and self.destination_key == 'aws_s3':
+                storage_class = self.dest_config.get('storage_class', 'INTELLIGENT_TIERING')
+                cmd.extend(['--s3-storage-class', storage_class])
             
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=7200)
             
@@ -214,7 +249,7 @@ class RcloneManager:
                 return {
                     'success': True,
                     'local_dir': local_dir,
-                    'remote_dir': s3_path,
+                    'remote_dir': remote_full_path,
                     'stats': stats
                 }
             else:
@@ -235,7 +270,7 @@ class RcloneManager:
     
     def list_files(self, remote_path: str = '') -> Dict:
         """
-        List files in S3 bucket
+        List files in bucket
         
         Args:
             remote_path: Remote path to list (optional)
@@ -244,15 +279,15 @@ class RcloneManager:
             dict: List result with files
         """
         try:
-            bucket = self.aws_config.get('bucket', 'my-backup-bucket')
-            s3_path = f"{self.remote_name}:{bucket}/{remote_path}"
+            bucket = self.bucket_name
+            full_path = f"{self.remote_name}:{bucket}/{remote_path}"
             
-            cmd = ['rclone', 'lsjson', s3_path]
+            cmd = ['rclone', 'lsjson', full_path]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
             
             if result.returncode == 0:
                 files = json.loads(result.stdout)
-                logger.info(f"Listed {len(files)} files from {s3_path}")
+                logger.info(f"Listed {len(files)} files from {full_path}")
                 return {
                     'success': True,
                     'files': files,
@@ -269,7 +304,7 @@ class RcloneManager:
     
     def check_file_exists(self, remote_path: str) -> Tuple[bool, Optional[int]]:
         """
-        Check if a file exists in S3 and get its size
+        Check if a file exists and get its size
         
         Args:
             remote_path: Remote file path
@@ -278,11 +313,11 @@ class RcloneManager:
             tuple: (exists: bool, size: Optional[int]) - True if file exists, and its size in bytes
         """
         try:
-            bucket = self.aws_config.get('bucket', 'my-backup-bucket')
-            s3_path = f"{self.remote_name}:{bucket}/{remote_path}"
+            bucket = self.bucket_name
+            full_path = f"{self.remote_name}:{bucket}/{remote_path}"
             
             # Use lsjson to get file details including size
-            cmd = ['rclone', 'lsjson', s3_path]
+            cmd = ['rclone', 'lsjson', full_path]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
             
             if result.returncode == 0 and result.stdout.strip():
@@ -291,7 +326,7 @@ class RcloneManager:
                     if files and len(files) > 0:
                         # File exists, return True and its size
                         size = files[0].get('Size', 0)
-                        logger.debug(f"File exists in S3: {remote_path} (size: {self._format_size(size)})")
+                        logger.debug(f"File exists: {remote_path} (size: {self._format_size(size)})")
                         return True, size
                 except json.JSONDecodeError:
                     pass
@@ -304,16 +339,16 @@ class RcloneManager:
     
     def get_bucket_size(self) -> Dict:
         """
-        Get total size of files in S3 bucket
+        Get total size of files in bucket
         
         Returns:
             dict: Size information
         """
         try:
-            bucket = self.aws_config.get('bucket', 'my-backup-bucket')
-            s3_path = f"{self.remote_name}:{bucket}"
+            bucket = self.bucket_name
+            full_path = f"{self.remote_name}:{bucket}"
             
-            cmd = ['rclone', 'size', s3_path, '--json']
+            cmd = ['rclone', 'size', full_path, '--json']
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
             
             if result.returncode == 0:
@@ -333,7 +368,7 @@ class RcloneManager:
     
     def delete_file(self, remote_path: str) -> Dict:
         """
-        Delete a file from S3
+        Delete a file
         
         Args:
             remote_path: Remote file path
@@ -342,17 +377,17 @@ class RcloneManager:
             dict: Deletion result
         """
         try:
-            bucket = self.aws_config.get('bucket', 'my-backup-bucket')
-            s3_path = f"{self.remote_name}:{bucket}/{remote_path}"
+            bucket = self.bucket_name
+            full_path = f"{self.remote_name}:{bucket}/{remote_path}"
             
-            logger.info(f"Deleting {s3_path}")
+            logger.info(f"Deleting {full_path}")
             
-            cmd = ['rclone', 'deletefile', s3_path]
+            cmd = ['rclone', 'deletefile', full_path]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
             
             if result.returncode == 0:
-                logger.info(f"Successfully deleted {s3_path}")
-                return {'success': True, 'remote_path': s3_path}
+                logger.info(f"Successfully deleted {full_path}")
+                return {'success': True, 'remote_path': full_path}
             else:
                 error_msg = result.stderr or 'Unknown error'
                 logger.error(f"Delete failed: {error_msg}")
