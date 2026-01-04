@@ -179,6 +179,50 @@
             border-radius: 10px;
             margin-left: 8px;
         }
+        .backup-status-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            font-size: 11px;
+            margin-left: 4px;
+            cursor: help;
+        }
+        .backup-status-icon.synced { color: #43A047; }
+        .backup-status-icon.pending { color: #FFA726; }
+        .backup-status-icon.failed { color: #E53935; }
+        .backup-status-icon.not-configured { color: #9E9E9E; }
+        .backup-status-group {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            background: #f8f9fa;
+        }
+        .folder-status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+        .folder-status-badge.fully-backed-up {
+            background: #E8F5E9;
+            color: #43A047;
+        }
+        .folder-status-badge.partially-backed-up {
+            background: #FFF3E0;
+            color: #F57C00;
+        }
+        .folder-status-badge.not-backed-up {
+            background: #F5F5F5;
+            color: #757575;
+        }
         .loading-overlay {
             position: fixed;
             top: 0;
@@ -310,6 +354,7 @@
         let driveTree = [];
         let folderPolicies = {};  // Map of folder_id -> {destinations: [...]}
         let syncStatusMap = {};
+        let backupStatusMap = {};  // Map of file_id -> {aws_s3: {status, last_sync}, backblaze_b2: {status, last_sync}}
 
         // Load folder policies
         async function loadFolderPolicies() {
@@ -342,6 +387,21 @@
                 }
             } catch (error) {
                 console.error('Error loading sync status:', error);
+            }
+        }
+
+        // Load backup status for all files
+        async function loadBackupStatus() {
+            try {
+                const response = await fetch('/api/files/backup-status');
+                const data = await response.json();
+                
+                if (data.success) {
+                    backupStatusMap = data.backup_status;
+                    console.log(`Loaded backup status for ${Object.keys(backupStatusMap).length} files`);
+                }
+            } catch (error) {
+                console.error('Error loading backup status:', error);
             }
         }
 
@@ -442,6 +502,71 @@
             return false;
         }
 
+        // Get backup status icon for a file/folder and destination
+        function getBackupStatusIcon(nodeId, destination, isFolder, node) {
+            if (!isFolder) {
+                // For files, check actual backup status
+                const backupStatus = backupStatusMap[nodeId];
+                if (backupStatus && backupStatus[destination]) {
+                    const status = backupStatus[destination].status;
+                    const lastSync = backupStatus[destination].last_sync;
+                    
+                    if (status === 'synced') {
+                        return `<i class="bi bi-check-circle-fill backup-status-icon synced" title="Backed up: ${lastSync || 'Unknown date'}"></i>`;
+                    } else if (status === 'pending') {
+                        return `<i class="bi bi-clock-fill backup-status-icon pending" title="Pending backup"></i>`;
+                    } else if (status === 'failed') {
+                        return `<i class="bi bi-x-circle-fill backup-status-icon failed" title="Backup failed"></i>`;
+                    }
+                }
+                // File not in backup status map = not configured or not yet synced
+                return `<i class="bi bi-circle backup-status-icon not-configured" title="Not yet backed up"></i>`;
+            } else {
+                // For folders, calculate aggregate status from children
+                const folderStatus = calculateFolderBackupStatus(node, destination);
+                if (folderStatus.totalFiles === 0) {
+                    return `<i class="bi bi-circle backup-status-icon not-configured" title="No files to backup"></i>`;
+                }
+                
+                const percentage = Math.round((folderStatus.backedUpFiles / folderStatus.totalFiles) * 100);
+                
+                if (folderStatus.backedUpFiles === folderStatus.totalFiles) {
+                    return `<i class="bi bi-check-circle-fill backup-status-icon synced" title="Fully backed up (${folderStatus.backedUpFiles}/${folderStatus.totalFiles})"></i>`;
+                } else if (folderStatus.backedUpFiles > 0) {
+                    return `<i class="bi bi-clock-fill backup-status-icon pending" title="Partially backed up (${folderStatus.backedUpFiles}/${folderStatus.totalFiles} - ${percentage}%)"></i>`;
+                } else {
+                    return `<i class="bi bi-circle backup-status-icon not-configured" title="Not backed up (0/${folderStatus.totalFiles})"></i>`;
+                }
+            }
+        }
+
+        // Calculate folder backup status recursively
+        function calculateFolderBackupStatus(node, destination) {
+            let totalFiles = 0;
+            let backedUpFiles = 0;
+            
+            if (!node.children || node.children.length === 0) {
+                return { totalFiles, backedUpFiles };
+            }
+            
+            for (const child of node.children) {
+                if (child.type === 'file') {
+                    totalFiles++;
+                    const backupStatus = backupStatusMap[child.id];
+                    if (backupStatus && backupStatus[destination] && backupStatus[destination].status === 'synced') {
+                        backedUpFiles++;
+                    }
+                } else if (child.type === 'folder' && child.children) {
+                    // Recursively check children
+                    const childStatus = calculateFolderBackupStatus(child, destination);
+                    totalFiles += childStatus.totalFiles;
+                    backedUpFiles += childStatus.backedUpFiles;
+                }
+            }
+            
+            return { totalFiles, backedUpFiles };
+        }
+
         // Render tree nodes recursively
         function renderNodes(nodes, level, parentPath = []) {
             if (!nodes || nodes.length === 0) return '';
@@ -496,6 +621,7 @@
                                     <label for="aws-${node.id}">
                                         <i class="bi bi-amazon dest-icon-aws"></i> S3
                                     </label>
+                                    ${hasAWS ? getBackupStatusIcon(node.id, 'aws_s3', true, node) : ''}
                                 </div>
                                 <div class="dest-checkbox-group ${hasB2 ? 'active' : ''}" onclick="event.stopPropagation()">
                                     <input type="checkbox" 
@@ -505,9 +631,17 @@
                                     <label for="b2-${node.id}">
                                         <i class="bi bi-cloud-fill dest-icon-b2"></i> B2
                                     </label>
+                                    ${hasB2 ? getBackupStatusIcon(node.id, 'backblaze_b2', true, node) : ''}
                                 </div>
                             </div>
-                        ` : ''}
+                        ` : `
+                            <div class="tree-node-destinations">
+                                <div class="backup-status-group">
+                                    ${getBackupStatusIcon(node.id, 'aws_s3', false, node)}
+                                    ${getBackupStatusIcon(node.id, 'backblaze_b2', false, node)}
+                                </div>
+                            </div>
+                        `}
                     </div>
                 `;
                 
@@ -777,11 +911,13 @@
             await loadStorageInfo();
             await loadFolderPolicies();
             await loadSyncStatus();
+            await loadBackupStatus();
             await loadDriveTree();
             
             // Refresh every 30 seconds
             setInterval(async () => {
                 await loadSyncStatus();
+            await loadBackupStatus();
                 await loadFolderPolicies();
                 renderTree();
             }, 30000);

@@ -723,3 +723,92 @@ def get_file_destinations(file_id):
             'success': False,
             'error': str(e)
         }), 500
+
+
+@api_bp.route('/files/backup-status', methods=['GET'])
+@login_required
+def get_files_backup_status():
+    """Get backup status for all files across all destinations"""
+    try:
+        from src.database.models import get_db
+        
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        # Get all file backup statuses
+        cursor.execute('''
+            SELECT file_id, destination, sync_status, last_sync
+            FROM file_destinations
+            WHERE sync_status IN ('synced', 'pending', 'failed')
+        ''')
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        # Build a map: file_id -> {destinations: {...}}
+        backup_status = {}
+        for row in rows:
+            file_id = row[0]
+            destination = row[1]
+            status = row[2]
+            last_sync = row[3]
+            
+            if file_id not in backup_status:
+                backup_status[file_id] = {
+                    'aws_s3': {'status': 'not_configured', 'last_sync': None},
+                    'backblaze_b2': {'status': 'not_configured', 'last_sync': None}
+                }
+            
+            if destination == 'aws_s3':
+                backup_status[file_id]['aws_s3'] = {
+                    'status': status,
+                    'last_sync': last_sync
+                }
+            elif destination == 'backblaze_b2':
+                backup_status[file_id]['backblaze_b2'] = {
+                    'status': status,
+                    'last_sync': last_sync
+                }
+        
+        return jsonify({
+            'success': True,
+            'backup_status': backup_status
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting files backup status: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/drive/storage', methods=['GET'])
+@login_required
+def get_drive_storage():
+    """Get Google Drive storage information"""
+    try:
+        from src.google_sync.oauth import get_oauth_manager
+        from src.google_sync.drive import create_drive_manager
+        
+        oauth_manager = get_oauth_manager()
+        if not oauth_manager.is_authenticated():
+            return jsonify({
+                'success': False,
+                'error': 'Not authenticated with Google'
+            }), 401
+        
+        drive_manager = create_drive_manager(oauth_manager.get_credentials())
+        storage_info = drive_manager.get_storage_quota()
+        
+        return jsonify({
+            'success': True,
+            'storage': storage_info
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting drive storage: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
