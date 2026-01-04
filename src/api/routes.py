@@ -812,3 +812,25 @@ def get_drive_storage():
             'success': False,
             'error': str(e)
         }), 500
+
+
+@api_bp.route('/folders/backup-stats', methods=['GET'])
+@login_required
+def get_folder_backup_stats():
+    """Get pre-calculated backup statistics for all folders"""
+    try:
+        from src.database import folder_stats
+        
+        stats = folder_stats.get_folder_backup_stats()
+        
+        return jsonify({
+            'success': True,
+            'folder_stats': stats
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting folder backup stats: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500

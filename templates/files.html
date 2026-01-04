@@ -355,6 +355,7 @@
         let folderPolicies = {};  // Map of folder_id -> {destinations: [...]}
         let syncStatusMap = {};
         let backupStatusMap = {};  // Map of file_id -> {aws_s3: {status, last_sync}, backblaze_b2: {status, last_sync}}
+        let folderStatsMap = {};  // Map of folder_name -> {destination -> {total, synced, percentage}}
 
         // Load folder policies
         async function loadFolderPolicies() {
@@ -402,6 +403,21 @@
                 }
             } catch (error) {
                 console.error('Error loading backup status:', error);
+            }
+        }
+
+        // Load folder statistics (pre-calculated backup stats by folder name)
+        async function loadFolderStats() {
+            try {
+                const response = await fetch('/api/folders/backup-stats');
+                const data = await response.json();
+                
+                if (data.success) {
+                    folderStatsMap = data.folder_stats;
+                    console.log(`Loaded folder stats for ${Object.keys(folderStatsMap).length} folders`);
+                }
+            } catch (error) {
+                console.error('Error loading folder stats:', error);
             }
         }
 
@@ -522,21 +538,43 @@
                 // File not in backup status map = not configured or not yet synced
                 return `<i class="bi bi-circle backup-status-icon not-configured" title="Not yet backed up"></i>`;
             } else {
-                // For folders, calculate aggregate status from children
-                const folderStatus = calculateFolderBackupStatus(node, destination);
-                if (folderStatus.totalFiles === 0) {
-                    return `<i class="bi bi-circle backup-status-icon not-configured" title="No files to backup"></i>`;
+                // For folders, first try to use pre-calculated stats (works before lazy loading!)
+                const folderName = node.name;
+                const folderStats = folderStatsMap[folderName];
+                
+                if (folderStats && folderStats[destination]) {
+                    const stats = folderStats[destination];
+                    const percentage = stats.percentage;
+                    
+                    if (stats.synced === stats.total && stats.total > 0) {
+                        return `<i class="bi bi-check-circle-fill backup-status-icon synced" title="Fully backed up (${stats.synced}/${stats.total})"></i>`;
+                    } else if (stats.synced > 0) {
+                        return `<i class="bi bi-clock-fill backup-status-icon pending" title="Partially backed up (${stats.synced}/${stats.total} - ${percentage}%)"></i>`;
+                    } else if (stats.total > 0) {
+                        return `<i class="bi bi-circle backup-status-icon not-configured" title="Not backed up (0/${stats.total})"></i>`;
+                    }
                 }
                 
-                const percentage = Math.round((folderStatus.backedUpFiles / folderStatus.totalFiles) * 100);
-                
-                if (folderStatus.backedUpFiles === folderStatus.totalFiles) {
-                    return `<i class="bi bi-check-circle-fill backup-status-icon synced" title="Fully backed up (${folderStatus.backedUpFiles}/${folderStatus.totalFiles})"></i>`;
-                } else if (folderStatus.backedUpFiles > 0) {
-                    return `<i class="bi bi-clock-fill backup-status-icon pending" title="Partially backed up (${folderStatus.backedUpFiles}/${folderStatus.totalFiles} - ${percentage}%)"></i>`;
-                } else {
-                    return `<i class="bi bi-circle backup-status-icon not-configured" title="Not backed up (0/${folderStatus.totalFiles})"></i>`;
+                // Fallback: calculate from children if they're loaded
+                if (node.children && node.children.length > 0) {
+                    const folderStatus = calculateFolderBackupStatus(node, destination);
+                    if (folderStatus.totalFiles === 0) {
+                        return `<i class="bi bi-circle backup-status-icon not-configured" title="No files to backup"></i>`;
+                    }
+                    
+                    const percentage = Math.round((folderStatus.backedUpFiles / folderStatus.totalFiles) * 100);
+                    
+                    if (folderStatus.backedUpFiles === folderStatus.totalFiles) {
+                        return `<i class="bi bi-check-circle-fill backup-status-icon synced" title="Fully backed up (${folderStatus.backedUpFiles}/${folderStatus.totalFiles})"></i>`;
+                    } else if (folderStatus.backedUpFiles > 0) {
+                        return `<i class="bi bi-clock-fill backup-status-icon pending" title="Partially backed up (${folderStatus.backedUpFiles}/${folderStatus.totalFiles} - ${percentage}%)"></i>`;
+                    } else {
+                        return `<i class="bi bi-circle backup-status-icon not-configured" title="Not backed up (0/${folderStatus.totalFiles})"></i>`;
+                    }
                 }
+                
+                // No data available yet
+                return `<i class="bi bi-circle backup-status-icon not-configured" title="No data"></i>`;
             }
         }
 
@@ -912,12 +950,14 @@
             await loadFolderPolicies();
             await loadSyncStatus();
             await loadBackupStatus();
+            await loadFolderStats();  // Load pre-calculated folder stats BEFORE tree
             await loadDriveTree();
             
             // Refresh every 30 seconds
             setInterval(async () => {
                 await loadSyncStatus();
-            await loadBackupStatus();
+                await loadBackupStatus();
+                await loadFolderStats();  // Refresh folder stats too
                 await loadFolderPolicies();
                 renderTree();
             }, 30000);
