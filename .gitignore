@@ -3,6 +3,7 @@
 *.pem
 token.pickle
 credentials.json
+TOKEN_FIX_SUMMARY.md
 
 # Python
 __pycache__/
