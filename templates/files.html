@@ -528,7 +528,7 @@
                     <div class="tree-node-main">
                         ${indent}
                         ${hasChildren ? `
-                            <div class="tree-expand collapsed" onclick="toggleNode(event, '${node.id}', ${node.childrenLoaded || false})">
+                            <div class="tree-expand collapsed" data-node-id="${node.id}">
                                 <i class="bi bi-chevron-down"></i>
                             </div>
                         ` : '<span class="tree-indent"></span>'}
@@ -543,17 +543,17 @@
                     </div>
                     ${isFolder ? `
                         <div class="tree-node-destinations">
-                            <div class="dest-checkbox-group ${hasAWS ? 'active' : ''}" onclick="event.stopPropagation()">
+                            <div class="dest-checkbox-group ${hasAWS ? 'active' : ''}">
                                 <input type="checkbox" id="aws-${node.id}" ${hasAWS ? 'checked' : ''}
-                                       onchange="toggleDestination('${node.id}', '${escapeHtml(node.name)}', 'aws_s3', this.checked)">
+                                       data-folder-id="${node.id}" data-folder-name="${escapeHtml(node.name)}" data-destination="aws_s3">
                                 <label for="aws-${node.id}">
                                     <i class="bi bi-amazon dest-icon-aws"></i> S3
                                 </label>
                                 ${hasAWS ? getBackupStatusIcon(node.id, 'aws_s3', true, node) : ''}
                             </div>
-                            <div class="dest-checkbox-group ${hasB2 ? 'active' : ''}" onclick="event.stopPropagation()">
+                            <div class="dest-checkbox-group ${hasB2 ? 'active' : ''}">
                                 <input type="checkbox" id="b2-${node.id}" ${hasB2 ? 'checked' : ''}
-                                       onchange="toggleDestination('${node.id}', '${escapeHtml(node.name)}', 'backblaze_b2', this.checked)">
+                                       data-folder-id="${node.id}" data-folder-name="${escapeHtml(node.name)}" data-destination="backblaze_b2">
                                 <label for="b2-${node.id}">
                                     <i class="bi bi-cloud-fill dest-icon-b2"></i> B2
                                 </label>
@@ -750,5 +750,35 @@
         div.textContent = text;
         return div.innerHTML;
     }
+
+    // Add event delegation for tree expand buttons
+    document.addEventListener('click', function(e) {
+        const expandBtn = e.target.closest('.tree-expand');
+        if (expandBtn) {
+            e.stopPropagation();
+            const nodeId = expandBtn.dataset.nodeId;
+            const children = document.getElementById(`children-${nodeId}`);
+            const childrenLoaded = children.dataset.loaded === 'true';
+            toggleNode(e, nodeId, childrenLoaded);
+        }
+    });
+
+    // Add event delegation for destination checkboxes
+    document.addEventListener('change', function(e) {
+        if (e.target.matches('.dest-checkbox-group input[type="checkbox"]')) {
+            const folderId = e.target.dataset.folderId;
+            const folderName = e.target.dataset.folderName;
+            const destination = e.target.dataset.destination;
+            const enabled = e.target.checked;
+            toggleDestination(folderId, folderName, destination, enabled);
+        }
+    });
+
+    // Prevent checkbox clicks from triggering row clicks
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.dest-checkbox-group')) {
+            e.stopPropagation();
+        }
+    });
 </script>
 {% endblock %}
