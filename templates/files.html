@@ -589,13 +589,21 @@
         const expand = document.querySelector(`.tree-expand[data-node-id="${nodeId}"]`);
         const children = document.getElementById(`children-${nodeId}`);
         
-        if (!expand || !children) return;
+        console.log('toggleNode called:', {nodeId, expand, children, childrenLoaded});
+        
+        if (!expand || !children) {
+            console.error('Missing elements:', {expand, children});
+            return;
+        }
         
         if (children.classList.contains('collapsed')) {
+            console.log('Expanding folder:', nodeId);
             if (!childrenLoaded) {
+                console.log('Loading children from API...');
                 try {
-                    const response = await fetch(`/api/drive/folder/${nodeId}/children`);
+                    const response = await fetch(`/api/drive/folder/${nodeId}`);
                     const data = await response.json();
+                    console.log('API response:', data);
                     if (data.success) {
                         const node = findNodeById(driveTree, nodeId);
                         if (node) {
@@ -603,6 +611,7 @@
                             node.childrenLoaded = true;
                             children.innerHTML = renderNodes(data.children, getNodeLevel(nodeId) + 1, getNodePath(nodeId));
                             children.dataset.loaded = 'true';
+                            console.log('Children loaded and rendered');
                         }
                     }
                 } catch (error) {
@@ -611,7 +620,9 @@
             }
             expand.classList.remove('collapsed');
             children.classList.remove('collapsed');
+            console.log('Folder expanded, classes updated');
         } else {
+            console.log('Collapsing folder:', nodeId);
             expand.classList.add('collapsed');
             children.classList.add('collapsed');
         }
