@@ -302,17 +302,6 @@ class SyncService:
             'deduplication_savings_formatted': self._format_size(deduplication_savings),
             'results': results
         }
-            'results': results,
-            'statistics': {
-                'total': len(file_ids),
-                'success': success_count,
-                'failed': error_count,
-                'skipped': skipped_count,
-                'uploaded': uploaded_count,
-                'total_size': total_size,
-                'total_size_formatted': self._format_size(total_size)
-            }
-        }
     
     def sync_folder_recursive(self, folder_id: str, parent_path: str = "") -> List[Dict]:
         """
