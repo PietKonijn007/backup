@@ -79,6 +79,7 @@ def get_aws_s3_stats():
 def get_backblaze_b2_stats():
     """Get real-time statistics from Backblaze B2 bucket"""
     try:
+        import os
         from b2sdk.v2 import InMemoryAccountInfo, B2Api
         from b2sdk.v2.exception import B2Error
         
@@ -88,14 +89,15 @@ def get_backblaze_b2_stats():
         if not b2_config.get('enabled', False):
             return {'enabled': False, 'error': 'Backblaze B2 not enabled in config'}
         
-        app_key_id = b2_config.get('application_key_id')
-        app_key = b2_config.get('application_key')
+        # Try to get credentials from config first, then environment variables
+        app_key_id = b2_config.get('application_key_id') or os.getenv('B2_APPLICATION_KEY_ID')
+        app_key = b2_config.get('application_key') or os.getenv('B2_APPLICATION_KEY')
         bucket_name = b2_config.get('bucket')
         
         if not all([app_key_id, app_key, bucket_name]):
             missing = []
-            if not app_key_id: missing.append('application_key_id')
-            if not app_key: missing.append('application_key')
+            if not app_key_id: missing.append('application_key_id (config or B2_APPLICATION_KEY_ID env)')
+            if not app_key: missing.append('application_key (config or B2_APPLICATION_KEY env)')
             if not bucket_name: missing.append('bucket')
             return {'enabled': False, 'error': f'Backblaze B2 credentials missing: {", ".join(missing)}'}
         
