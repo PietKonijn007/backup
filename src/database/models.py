@@ -103,6 +103,26 @@ def init_db():
         )
     ''')
     
+    # System logs table - for application logging
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            level TEXT NOT NULL,
+            source TEXT NOT NULL,
+            message TEXT NOT NULL,
+            details TEXT
+        )
+    ''')
+    
+    # Create index for logs performance
+    cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp DESC)
+    ''')
+    cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_logs_level ON logs(level)
+    ''')
+    
     conn.commit()
     conn.close()
 

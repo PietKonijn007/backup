@@ -13,6 +13,9 @@ google-auth-oauthlib==1.2.0
 boto3==1.34.0
 botocore==1.34.0
 
+# Backblaze B2 SDK
+b2sdk==2.10.2
+
 # Retry logic and utilities
 tenacity==8.2.3
 requests==2.31.0

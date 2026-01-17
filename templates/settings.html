@@ -168,7 +168,8 @@
                         </div>
                         <div class="mt-3">
                             <small class="text-muted">
-                                <i class="bi bi-info-circle"></i> Edit <code>config.yaml</code> to change sync settings
+                                <i class="bi bi-info-circle"></i> Edit <code>config.yaml</code> to change sync settings. 
+                                Configure which folders to backup in the <a href="/files">Files</a> section.
                             </small>
                         </div>
                     </div>
@@ -227,27 +228,6 @@
                     </div>
                 </div>
                 
-                <!-- Sync Folder Configuration -->
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h5><i class="bi bi-folder-symlink"></i> Sync Folder Configuration</h5>
-                    </div>
-                    <div class="card-body">
-                        <p class="text-muted">Configure which Google Drive folders to sync and their backup destinations.</p>
-                        <div id="folder-policies-list" class="mb-3">
-                            <div class="text-center text-muted py-3">
-                                <div class="spinner-border spinner-border-sm" role="status">
-                                    <span class="visually-hidden">Loading...</span>
-                                </div>
-                                Loading folder policies...
-                            </div>
-                        </div>
-                        <button class="btn btn-primary" onclick="showAddFolderModal()">
-                            <i class="bi bi-plus-circle"></i> Add Folder to Sync
-                        </button>
-                    </div>
-                </div>
-                
                 <!-- Sync Settings -->
                 <div class="card mb-4">
                     <div class="card-header">
@@ -274,6 +254,11 @@
                                 </tr>
                             </tbody>
                         </table>
+                        <div class="mt-3">
+                            <small class="text-muted">
+                                <i class="bi bi-info-circle"></i> To configure which folders to backup, go to the <a href="/files" class="text-decoration-none">Files</a> section.
+                            </small>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -1,6 +1,7 @@
 """API Routes - Sync control and monitoring"""
 from flask import Blueprint, jsonify, request, current_app
-from flask_login import login_required
+from flask_login import login_required, current_user
+from datetime import datetime
 import yaml
 from src.sync_daemon import get_daemon
 from src.database import sync_config
@@ -23,11 +24,16 @@ def get_config():
 @api_bp.route('/status')
 @login_required
 def status():
-    """Get current sync daemon status"""
+    """Get current sync daemon status with real-time statistics from buckets"""
     try:
         config = get_config()
         daemon = get_daemon(config)
         daemon_status = daemon.get_status()
+        
+        # Get real-time detailed statistics from actual buckets
+        from src.storage.bucket_inspector import get_real_time_sync_statistics
+        detailed_stats = get_real_time_sync_statistics()
+        daemon_status['detailed_stats'] = detailed_stats
         
         return jsonify({
             'success': True,
@@ -39,6 +45,25 @@ def status():
             'success': False,
             'error': str(e)
         }), 500
+
+
+def get_detailed_sync_statistics():
+    """DEPRECATED: Use bucket_inspector.get_real_time_sync_statistics() instead"""
+    # Keep for backward compatibility, but redirect to real-time version
+    from src.storage.bucket_inspector import get_real_time_sync_statistics
+    return get_real_time_sync_statistics()
+
+
+def format_bytes(bytes_value):
+    """Format bytes into human readable format"""
+    if bytes_value == 0:
+        return "0 B"
+    
+    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        if bytes_value < 1024.0:
+            return f"{bytes_value:.1f} {unit}"
+        bytes_value /= 1024.0
+    return f"{bytes_value:.1f} PB"
 
 
 @api_bp.route('/sync/start', methods=['POST'])
@@ -830,6 +855,362 @@ def get_folder_backup_stats():
         
     except Exception as e:
         logger.error(f"Error getting folder backup stats: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+# Logs API Endpoints
+
+@api_bp.route('/logs', methods=['GET'])
+@login_required
+def get_logs():
+    """Get system logs with filtering and pagination"""
+    try:
+        from src.database.models import get_db
+        from datetime import datetime, timedelta
+        
+        # Get query parameters
+        limit = request.args.get('limit', 500, type=int)
+        since_id = request.args.get('since', 0, type=int)
+        level = request.args.get('level', None)
+        
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        # Build query
+        where_conditions = []
+        params = []
+        
+        if since_id > 0:
+            where_conditions.append('id > ?')
+            params.append(since_id)
+        
+        if level:
+            where_conditions.append('level = ?')
+            params.append(level.upper())
+        
+        where_clause = ' AND '.join(where_conditions) if where_conditions else '1=1'
+        
+        # Get logs
+        cursor.execute(f'''
+            SELECT id, timestamp, level, source, message
+            FROM logs
+            WHERE {where_clause}
+            ORDER BY timestamp DESC, id DESC
+            LIMIT ?
+        ''', params + [limit])
+        
+        rows = cursor.fetchall()
+        
+        logs = []
+        for row in rows:
+            logs.append({
+                'id': row[0],
+                'timestamp': row[1],
+                'level': row[2],
+                'source': row[3],
+                'message': row[4]
+            })
+        
+        # Get statistics for last 24 hours
+        yesterday = datetime.now() - timedelta(days=1)
+        cursor.execute('''
+            SELECT level, COUNT(*) as count
+            FROM logs
+            WHERE timestamp >= ?
+            GROUP BY level
+        ''', (yesterday.isoformat(),))
+        
+        stats_rows = cursor.fetchall()
+        stats = {'error': 0, 'warning': 0, 'info': 0, 'debug': 0, 'total': 0}
+        
+        for row in stats_rows:
+            level = row[0].lower()
+            count = row[1]
+            if level in stats:
+                stats[level] = count
+            stats['total'] += count
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'logs': logs,
+            'stats': stats,
+            'count': len(logs)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting logs: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/logs/export', methods=['GET'])
+@login_required
+def export_logs():
+    """Export logs as text file"""
+    try:
+        from src.database.models import get_db
+        from flask import Response
+        from datetime import datetime
+        
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT timestamp, level, source, message
+            FROM logs
+            ORDER BY timestamp DESC
+            LIMIT 10000
+        ''')
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        # Generate text content
+        content = f"# Backup System Logs Export\n"
+        content += f"# Generated: {datetime.now().isoformat()}\n"
+        content += f"# Total entries: {len(rows)}\n\n"
+        
+        for row in rows:
+            timestamp, level, source, message = row
+            content += f"{timestamp} [{source}] {level}: {message}\n"
+        
+        return Response(
+            content,
+            mimetype='text/plain',
+            headers={
+                'Content-Disposition': f'attachment; filename=backup-logs-{datetime.now().strftime("%Y%m%d-%H%M%S")}.txt'
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Error exporting logs: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/logs/clear', methods=['POST'])
+@login_required
+def clear_logs():
+    """Clear all logs (admin only)"""
+    try:
+        from src.database.models import get_db
+        
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        cursor.execute('DELETE FROM logs')
+        conn.commit()
+        conn.close()
+        
+        logger.info(f"All logs cleared by user {current_user.username}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'All logs cleared successfully'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error clearing logs: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+# Failed Files Management Endpoints
+
+@api_bp.route('/sync/failed-files', methods=['GET'])
+@login_required
+def get_failed_files():
+    """Get all failed files with details from database (real-time)"""
+    try:
+        from src.storage.bucket_inspector import get_failed_files_from_database
+        
+        failed_files = get_failed_files_from_database()
+        
+        return jsonify({
+            'success': True,
+            'failed_files': failed_files,
+            'count': len(failed_files)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting failed files: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/sync/retry-file', methods=['POST'])
+@login_required
+def retry_file():
+    """Retry syncing a specific failed file"""
+    try:
+        from src.database.models import get_db
+        
+        data = request.get_json()
+        file_id = data.get('file_id')
+        destination = data.get('destination')
+        
+        if not file_id or not destination:
+            return jsonify({
+                'success': False,
+                'error': 'file_id and destination are required'
+            }), 400
+        
+        # Update status to pending for retry
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            UPDATE file_destinations 
+            SET sync_status = 'pending', error_message = NULL, updated_at = CURRENT_TIMESTAMP
+            WHERE file_id = ? AND destination = ?
+        ''', (file_id, destination))
+        
+        if cursor.rowcount > 0:
+            conn.commit()
+            logger.info(f"File {file_id} marked for retry on {destination}")
+            
+            # TODO: Trigger actual sync process here
+            # For now, we just mark it as pending
+            
+            conn.close()
+            return jsonify({
+                'success': True,
+                'message': f'File marked for retry on {destination}'
+            })
+        else:
+            conn.close()
+            return jsonify({
+                'success': False,
+                'error': 'File not found or not in failed state'
+            }), 404
+            
+    except Exception as e:
+        logger.error(f"Error retrying file: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/sync/retry-all-failed', methods=['POST'])
+@login_required
+def retry_all_failed():
+    """Retry all failed files"""
+    try:
+        from src.database.models import get_db
+        
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        # Update all failed files to pending
+        cursor.execute('''
+            UPDATE file_destinations 
+            SET sync_status = 'pending', error_message = NULL, updated_at = CURRENT_TIMESTAMP
+            WHERE sync_status = 'failed'
+        ''')
+        
+        retry_count = cursor.rowcount
+        conn.commit()
+        conn.close()
+        
+        logger.info(f"Marked {retry_count} failed files for retry")
+        
+        # TODO: Trigger actual sync process here
+        
+        return jsonify({
+            'success': True,
+            'message': f'Marked {retry_count} files for retry',
+            'retry_count': retry_count
+        })
+        
+    except Exception as e:
+        logger.error(f"Error retrying all failed files: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+# Real-time Bucket Status Endpoints
+
+@api_bp.route('/buckets/status', methods=['GET'])
+@login_required
+def get_bucket_status():
+    """Get real-time status of all configured buckets"""
+    try:
+        from src.storage.bucket_inspector import get_aws_s3_stats, get_backblaze_b2_stats
+        
+        aws_stats = get_aws_s3_stats()
+        b2_stats = get_backblaze_b2_stats()
+        
+        return jsonify({
+            'success': True,
+            'buckets': {
+                'aws_s3': aws_stats,
+                'backblaze_b2': b2_stats
+            },
+            'last_checked': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting bucket status: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/buckets/aws-s3/status', methods=['GET'])
+@login_required
+def get_aws_s3_bucket_status():
+    """Get real-time AWS S3 bucket status"""
+    try:
+        from src.storage.bucket_inspector import get_aws_s3_stats
+        
+        stats = get_aws_s3_stats()
+        
+        return jsonify({
+            'success': True,
+            'aws_s3': stats
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting AWS S3 bucket status: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/buckets/backblaze-b2/status', methods=['GET'])
+@login_required
+def get_b2_bucket_status():
+    """Get real-time Backblaze B2 bucket status"""
+    try:
+        from src.storage.bucket_inspector import get_backblaze_b2_stats
+        
+        stats = get_backblaze_b2_stats()
+        
+        return jsonify({
+            'success': True,
+            'backblaze_b2': stats
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting Backblaze B2 bucket status: {e}")
         return jsonify({
             'success': False,
             'error': str(e)

@@ -38,6 +38,10 @@ logger = setup_logger('backup-app')
 # Initialize database
 init_db()
 
+# Set up database logging
+from src.utils.db_logger import setup_database_logging
+setup_database_logging()
+
 # Flask-Login setup
 login_manager = LoginManager()
 login_manager.init_app(app)
