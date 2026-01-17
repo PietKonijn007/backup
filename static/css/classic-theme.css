@@ -1,0 +1,146 @@
+/* Classic Theme - Gradient Purple Style */
+
+/* Override professional theme when classic theme is active */
+body[data-theme="classic"] {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    min-height: 100vh;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Classic Navigation */
+body[data-theme="classic"] .navbar-professional {
+    background: rgba(255, 255, 255, 0.95) !important;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    border-bottom: none;
+}
+
+body[data-theme="classic"] .navbar-professional .navbar-brand {
+    color: #667eea !important;
+}
+
+body[data-theme="classic"] .navbar-professional .navbar-brand:hover {
+    color: #764ba2 !important;
+}
+
+body[data-theme="classic"] .navbar-professional .nav-link {
+    color: #495057 !important;
+    border-bottom: none;
+}
+
+body[data-theme="classic"] .navbar-professional .nav-link:hover {
+    color: #667eea !important;
+    background-color: rgba(102, 126, 234, 0.1);
+}
+
+body[data-theme="classic"] .navbar-professional .nav-link.active {
+    color: #667eea !important;
+    background-color: rgba(102, 126, 234, 0.15);
+    border-bottom: none;
+}
+
+/* Classic Cards */
+body[data-theme="classic"] .card-professional {
+    border-radius: 15px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+    border: none;
+}
+
+body[data-theme="classic"] .card-professional-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-bottom: none;
+}
+
+body[data-theme="classic"] .card-professional-header h2,
+body[data-theme="classic"] .card-professional-header h3,
+body[data-theme="classic"] .card-professional-header h4,
+body[data-theme="classic"] .card-professional-header h5 {
+    color: white;
+}
+
+/* Classic Buttons */
+body[data-theme="classic"] .btn-professional-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+}
+
+body[data-theme="classic"] .btn-professional-primary:hover {
+    background: linear-gradient(135deg, #5568d3 0%, #653a8b 100%);
+    transform: translateY(-2px);
+}
+
+body[data-theme="classic"] .btn-professional-secondary {
+    background: white;
+    color: #667eea;
+    border: 2px solid #667eea;
+}
+
+body[data-theme="classic"] .btn-professional-secondary:hover {
+    background: #667eea;
+    color: white;
+}
+
+/* Classic Metric Cards */
+body[data-theme="classic"] .metric-card {
+    border-radius: 15px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+    transition: transform 0.2s;
+}
+
+body[data-theme="classic"] .metric-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+}
+
+body[data-theme="classic"] .metric-value {
+    color: #667eea;
+}
+
+/* Classic Status Indicators */
+body[data-theme="classic"] .status-indicator {
+    border-radius: 20px;
+    font-size: 1.1em;
+}
+
+/* Classic Alerts */
+body[data-theme="classic"] .alert-professional {
+    border-radius: 10px;
+    border-left-width: 5px;
+}
+
+/* Classic Service Status Card */
+body[data-theme="classic"] .service-status-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    border-radius: 15px;
+}
+
+/* Classic Table */
+body[data-theme="classic"] .table-professional thead {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+body[data-theme="classic"] .table-professional th {
+    color: white;
+}
+
+/* Classic Destination Items */
+body[data-theme="classic"] .destination-item {
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* Classic Breadcrumbs */
+body[data-theme="classic"] .breadcrumb-professional a {
+    color: #667eea;
+}
+
+body[data-theme="classic"] .breadcrumb-professional a:hover {
+    color: #764ba2;
+}
+
+/* Smooth transitions */
+body[data-theme="classic"] * {
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}

@@ -1,969 +1,754 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Files - Backup System</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
-    <style>
-        body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        .navbar {
-            background: rgba(255, 255, 255, 0.95) !important;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        .container-main {
-            margin-top: 80px;
-            padding-bottom: 50px;
-        }
-        .files-card {
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-            overflow: hidden;
-        }
-        .files-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 30px;
-        }
-        .tree-container {
-            padding: 20px;
-            max-height: 70vh;
-            overflow-y: auto;
-        }
-        .tree-header {
-            display: flex;
-            align-items: center;
-            padding: 12px;
-            background: #f8f9fa;
-            border-bottom: 2px solid #dee2e6;
-            font-weight: 600;
-            font-size: 13px;
-            color: #495057;
-            position: sticky;
-            top: 0;
-            z-index: 10;
-        }
-        .tree-node {
-            padding: 8px 12px;
-            margin: 2px 0;
-            border-radius: 6px;
-            transition: all 0.2s ease;
-            display: flex;
-            align-items: center;
-            user-select: none;
-        }
-        .tree-node:hover {
-            background: #f8f9fa;
-        }
-        .tree-node-main {
-            display: flex;
-            align-items: center;
-            flex: 1;
-            gap: 10px;
-            min-width: 0;
-        }
-        .tree-node-destinations {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-            margin-left: auto;
-            padding-left: 20px;
-        }
-        .dest-checkbox-group {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            padding: 4px 10px;
-            border-radius: 4px;
-            background: #f8f9fa;
-            transition: all 0.2s;
-        }
-        .dest-checkbox-group:hover {
-            background: #e9ecef;
-        }
-        .dest-checkbox-group.active {
-            background: #e3f2fd;
-        }
-        .dest-checkbox-group input[type="checkbox"] {
-            width: 16px;
-            height: 16px;
-            cursor: pointer;
-        }
-        .dest-checkbox-group label {
-            margin: 0;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            user-select: none;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-        .dest-icon-aws {
-            color: #FF9900;
-        }
-        .dest-icon-b2 {
-            color: #0091DA;
-        }
-        .tree-indent {
-            display: inline-block;
-            width: 24px;
-        }
-        .tree-expand {
-            width: 20px;
-            height: 20px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            border-radius: 3px;
-            transition: all 0.2s ease;
-        }
-        .tree-expand:hover {
-            background: #e9ecef;
-        }
-        .tree-expand.collapsed i {
-            transform: rotate(-90deg);
-        }
-        .tree-children {
-            margin-left: 24px;
-        }
-        .tree-children.collapsed {
-            display: none;
-        }
-        .file-icon {
-            width: 32px;
-            height: 32px;
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-            flex-shrink: 0;
-        }
-        .file-icon.folder { background: linear-gradient(135deg, #FFA726 0%, #FB8C00 100%); color: white; }
-        .file-icon.document { background: linear-gradient(135deg, #42A5F5 0%, #1E88E5 100%); color: white; }
-        .file-icon.spreadsheet { background: linear-gradient(135deg, #66BB6A 0%, #43A047 100%); color: white; }
-        .file-icon.presentation { background: linear-gradient(135deg, #FFA726 0%, #F57C00 100%); color: white; }
-        .file-icon.image { background: linear-gradient(135deg, #EC407A 0%, #D81B60 100%); color: white; }
-        .file-icon.video { background: linear-gradient(135deg, #AB47BC 0%, #8E24AA 100%); color: white; }
-        .file-icon.pdf { background: linear-gradient(135deg, #EF5350 0%, #E53935 100%); color: white; }
-        .file-icon.default { background: linear-gradient(135deg, #78909C 0%, #546E7A 100%); color: white; }
-        .file-name {
-            font-size: 14px;
-            font-weight: 500;
-            color: #333;
-            flex: 1;
-            min-width: 0;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-        .file-meta {
-            font-size: 12px;
-            color: #6c757d;
-            margin-left: 10px;
-        }
-        .badge-synced {
-            background: linear-gradient(135deg, #66BB6A 0%, #43A047 100%);
-            color: white;
-            font-size: 10px;
-            padding: 3px 8px;
-            border-radius: 10px;
-            margin-left: 8px;
-        }
-        .backup-status-icon {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 18px;
-            height: 18px;
-            font-size: 11px;
-            margin-left: 4px;
-            cursor: help;
-        }
-        .backup-status-icon.synced { color: #43A047; }
-        .backup-status-icon.pending { color: #FFA726; }
-        .backup-status-icon.failed { color: #E53935; }
-        .backup-status-icon.not-configured { color: #9E9E9E; }
-        .backup-status-group {
-            display: flex;
-            align-items: center;
-            gap: 2px;
-            padding: 2px 6px;
-            border-radius: 3px;
-            background: #f8f9fa;
-        }
-        .folder-status-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            padding: 2px 8px;
-            border-radius: 10px;
-            font-size: 10px;
-            font-weight: 600;
-            margin-left: 8px;
-        }
-        .folder-status-badge.fully-backed-up {
-            background: #E8F5E9;
-            color: #43A047;
-        }
-        .folder-status-badge.partially-backed-up {
-            background: #FFF3E0;
-            color: #F57C00;
-        }
-        .folder-status-badge.not-backed-up {
-            background: #F5F5F5;
-            color: #757575;
-        }
-        .loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(255, 255, 255, 0.9);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 9999;
-        }
-        .loading-spinner {
-            width: 60px;
-            height: 60px;
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 20px;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        .storage-info {
-            background: white;
-            border-radius: 15px;
-            padding: 20px;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-        }
-        .progress { height: 10px; border-radius: 10px; }
-    </style>
-</head>
-<body>
-    <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-light fixed-top">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="/">
-                <i class="bi bi-cloud-arrow-up"></i> Backup System
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item"><a class="nav-link" href="/">Dashboard</a></li>
-                    <li class="nav-item"><a class="nav-link active" href="/files">Files</a></li>
-                    <li class="nav-item"><a class="nav-link" href="/logs">Logs</a></li>
-                    <li class="nav-item"><a class="nav-link" href="/settings">Settings</a></li>
-                </ul>
-                <ul class="navbar-nav">
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
-                            <i class="bi bi-person-circle"></i> {{ user.username }}
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="/settings"><i class="bi bi-gear"></i> Settings</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="/logout"><i class="bi bi-box-arrow-right"></i> Logout</a></li>
-                        </ul>
-                    </li>
-                </ul>
+{% extends "base.html" %}
+
+{% block title %}Files - Backup System{% endblock %}
+
+{% block extra_css %}
+<style>
+    .files-card {
+        background: white;
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-md);
+        overflow: hidden;
+    }
+    
+    body[data-theme="classic"] .files-card {
+        border-radius: 15px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+    }
+    
+    .files-header {
+        background: linear-gradient(135deg, #232F3E 0%, #37475A 100%);
+        color: white;
+        padding: 30px;
+    }
+    
+    body[data-theme="classic"] .files-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    .tree-container {
+        padding: 20px;
+        max-height: 70vh;
+        overflow-y: auto;
+    }
+    
+    .tree-header {
+        display: flex;
+        align-items: center;
+        padding: 12px;
+        background: var(--gray-50);
+        border-bottom: 2px solid var(--gray-300);
+        font-weight: 600;
+        font-size: 13px;
+        color: var(--gray-700);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+    
+    .tree-node {
+        padding: 8px 12px;
+        margin: 2px 0;
+        border-radius: 6px;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        user-select: none;
+    }
+    
+    .tree-node:hover {
+        background: var(--gray-50);
+    }
+    
+    .tree-node-main {
+        display: flex;
+        align-items: center;
+        flex: 1;
+        gap: 10px;
+        min-width: 0;
+    }
+    
+    .tree-node-destinations {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        margin-left: auto;
+        padding-left: 20px;
+    }
+    
+    .dest-checkbox-group {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 4px;
+        background: var(--gray-50);
+        transition: all 0.2s;
+    }
+    
+    .dest-checkbox-group:hover {
+        background: var(--gray-200);
+    }
+    
+    .dest-checkbox-group.active {
+        background: #e3f2fd;
+    }
+    
+    .dest-checkbox-group input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        cursor: pointer;
+    }
+    
+    .dest-checkbox-group label {
+        margin: 0;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        user-select: none;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+    
+    .dest-icon-aws { color: #FF9900; }
+    .dest-icon-b2 { color: #0091DA; }
+    
+    .tree-indent {
+        display: inline-block;
+        width: 24px;
+    }
+    
+    .tree-expand {
+        width: 20px;
+        height: 20px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        border-radius: 3px;
+        transition: all 0.2s ease;
+    }
+    
+    .tree-expand:hover {
+        background: var(--gray-200);
+    }
+    
+    .tree-expand.collapsed i {
+        transform: rotate(-90deg);
+    }
+    
+    .tree-children {
+        margin-left: 24px;
+    }
+    
+    .tree-children.collapsed {
+        display: none;
+    }
+    
+    .file-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        flex-shrink: 0;
+    }
+    
+    .file-icon.folder { background: linear-gradient(135deg, #FFA726 0%, #FB8C00 100%); color: white; }
+    .file-icon.document { background: linear-gradient(135deg, #42A5F5 0%, #1E88E5 100%); color: white; }
+    .file-icon.spreadsheet { background: linear-gradient(135deg, #66BB6A 0%, #43A047 100%); color: white; }
+    .file-icon.presentation { background: linear-gradient(135deg, #FFA726 0%, #F57C00 100%); color: white; }
+    .file-icon.image { background: linear-gradient(135deg, #EC407A 0%, #D81B60 100%); color: white; }
+    .file-icon.video { background: linear-gradient(135deg, #AB47BC 0%, #8E24AA 100%); color: white; }
+    .file-icon.pdf { background: linear-gradient(135deg, #EF5350 0%, #E53935 100%); color: white; }
+    .file-icon.default { background: linear-gradient(135deg, #78909C 0%, #546E7A 100%); color: white; }
+    
+    .file-name {
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--gray-900);
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    .file-meta {
+        font-size: 12px;
+        color: var(--gray-600);
+        margin-left: 10px;
+    }
+    
+    .badge-synced {
+        background: linear-gradient(135deg, #66BB6A 0%, #43A047 100%);
+        color: white;
+        font-size: 10px;
+        padding: 3px 8px;
+        border-radius: 10px;
+        margin-left: 8px;
+    }
+    
+    .backup-status-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 18px;
+        height: 18px;
+        font-size: 11px;
+        margin-left: 4px;
+        cursor: help;
+    }
+    
+    .backup-status-icon.synced { color: var(--success); }
+    .backup-status-icon.pending { color: var(--warning); }
+    .backup-status-icon.failed { color: var(--error); }
+    .backup-status-icon.not-configured { color: var(--gray-500); }
+    
+    .backup-status-group {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        padding: 2px 6px;
+        border-radius: 3px;
+        background: var(--gray-50);
+    }
+    
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.9);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+    }
+    
+    .storage-info {
+        background: white;
+        border-radius: var(--radius-md);
+        padding: 20px;
+        box-shadow: var(--shadow-sm);
+        margin-bottom: 20px;
+        border: 1px solid var(--gray-300);
+    }
+    
+    body[data-theme="classic"] .storage-info {
+        border-radius: 15px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+    }
+    
+    .progress { 
+        height: 10px; 
+        border-radius: 10px;
+        background-color: var(--gray-200);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="breadcrumb-professional">
+    <a href="/">Dashboard</a>
+    <span class="breadcrumb-separator">/</span>
+    <span>Files</span>
+</div>
+
+<!-- Storage Info -->
+<div class="storage-info" id="storageInfo" style="display: none;">
+    <div class="row align-items-center">
+        <div class="col-md-8">
+            <h6 class="mb-2">Google Drive Storage</h6>
+            <div class="progress">
+                <div class="progress-bar" role="progressbar" style="width: 0%" id="storageProgress"></div>
             </div>
+            <small class="text-muted mt-1 d-block" id="storageText">Loading...</small>
         </div>
-    </nav>
-
-    <div class="container container-main">
-        <!-- Storage Info -->
-        <div class="storage-info" id="storageInfo" style="display: none;">
-            <div class="row align-items-center">
-                <div class="col-md-8">
-                    <h6 class="mb-2">Google Drive Storage</h6>
-                    <div class="progress">
-                        <div class="progress-bar" role="progressbar" style="width: 0%" id="storageProgress"></div>
-                    </div>
-                    <small class="text-muted mt-1 d-block" id="storageText">Loading...</small>
-                </div>
-                <div class="col-md-4 text-end">
-                    <h3 class="mb-0" id="storagePercentage">0%</h3>
-                    <small class="text-muted">Used</small>
-                </div>
-            </div>
+        <div class="col-md-4 text-end">
+            <h3 class="mb-0" id="storagePercentage">0%</h3>
+            <small class="text-muted">Used</small>
         </div>
+    </div>
+</div>
 
-        <!-- Files Card -->
-        <div class="files-card">
-            <div class="files-header">
-                <div class="row align-items-center">
-                    <div class="col-md-8">
-                        <h2><i class="bi bi-folder2-open"></i> Backup Configuration</h2>
-                        <p class="mb-0">Configure which Google Drive folders to backup and select their destinations (AWS S3, Backblaze B2)</p>
-                    </div>
-                    <div class="col-md-4 text-end">
-                        <button class="btn btn-light" onclick="expandAll()">
-                            <i class="bi bi-arrows-expand"></i> Expand All
-                        </button>
-                        <button class="btn btn-light" onclick="collapseAll()">
-                            <i class="bi bi-arrows-collapse"></i> Collapse All
-                        </button>
-                    </div>
-                </div>
+<!-- Files Card -->
+<div class="files-card">
+    <div class="files-header">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <h2><i class="bi bi-folder2-open"></i> Backup Configuration</h2>
+                <p class="mb-0">Configure which Google Drive folders to backup and select their destinations (AWS S3, Backblaze B2)</p>
             </div>
-
-            <!-- Tree Container -->
-            <div class="tree-container" id="treeContainer">
-                <div class="text-center py-5">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
-                    <p class="mt-3 text-muted">Loading your Google Drive structure...</p>
-                </div>
+            <div class="col-md-4 text-end">
+                <button class="btn btn-light btn-sm" onclick="expandAll()">
+                    <i class="bi bi-arrows-expand"></i> Expand All
+                </button>
+                <button class="btn btn-light btn-sm" onclick="collapseAll()">
+                    <i class="bi bi-arrows-collapse"></i> Collapse All
+                </button>
             </div>
         </div>
     </div>
 
-    <!-- Loading Overlay -->
-    <div class="loading-overlay" id="loadingOverlay" style="display: none;">
-        <div class="loading-content">
-            <div class="loading-spinner"></div>
-            <h4>Building Complete Drive Structure...</h4>
-            <p class="text-muted">This may take a few moments</p>
+    <!-- Tree Container -->
+    <div class="tree-container" id="treeContainer">
+        <div class="text-center py-5">
+            <div class="spinner-professional"></div>
+            <p class="mt-3 text-muted">Loading your Google Drive structure...</p>
         </div>
     </div>
+</div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        let driveTree = [];
-        let folderPolicies = {};  // Map of folder_id -> {destinations: [...]}
-        let syncStatusMap = {};
-        let backupStatusMap = {};  // Map of file_id -> {aws_s3: {status, last_sync}, backblaze_b2: {status, last_sync}}
-        let folderStatsMap = {};  // Map of folder_name -> {destination -> {total, synced, percentage}}
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loadingOverlay" style="display: none;">
+    <div class="loading-content text-center">
+        <div class="spinner-professional"></div>
+        <h4 class="mt-4">Building Complete Drive Structure...</h4>
+        <p class="text-muted">This may take a few moments</p>
+    </div>
+</div>
+{% endblock %}
 
-        // Load folder policies
-        async function loadFolderPolicies() {
-            try {
-                const response = await fetch('/api/folders/policies');
-                const data = await response.json();
-                
-                if (data.success) {
-                    folderPolicies = {};
-                    data.policies.forEach(policy => {
-                        folderPolicies[policy.folder_id] = {
-                            destinations: policy.destinations || []
-                        };
-                    });
-                    console.log(`Loaded ${data.policies.length} folder policies`);
-                }
-            } catch (error) {
-                console.error('Error loading folder policies:', error);
+{% block extra_js %}
+<script>
+    let driveTree = [];
+    let folderPolicies = {};
+    let syncStatusMap = {};
+    let backupStatusMap = {};
+    let folderStatsMap = {};
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', async function() {
+        await Promise.all([
+            loadFolderPolicies(),
+            loadSyncStatus(),
+            loadBackupStatus(),
+            loadFolderStats(),
+            loadStorageInfo()
+        ]);
+        await loadDriveTree();
+    });
+
+    async function loadFolderPolicies() {
+        try {
+            const response = await fetch('/api/folders/policies');
+            const data = await response.json();
+            if (data.success) {
+                folderPolicies = {};
+                data.policies.forEach(policy => {
+                    folderPolicies[policy.folder_id] = {
+                        destinations: policy.destinations || []
+                    };
+                });
             }
+        } catch (error) {
+            console.error('Error loading folder policies:', error);
         }
+    }
 
-        // Load sync status
-        async function loadSyncStatus() {
-            try {
-                const response = await fetch('/api/sync/status');
-                const data = await response.json();
-                
-                if (data.success) {
-                    syncStatusMap = data.status_map;
-                }
-            } catch (error) {
-                console.error('Error loading sync status:', error);
+    async function loadSyncStatus() {
+        try {
+            const response = await fetch('/api/sync/status');
+            const data = await response.json();
+            if (data.success) {
+                syncStatusMap = data.status_map;
             }
+        } catch (error) {
+            console.error('Error loading sync status:', error);
         }
+    }
 
-        // Load backup status for all files
-        async function loadBackupStatus() {
-            try {
-                const response = await fetch('/api/files/backup-status');
-                const data = await response.json();
-                
-                if (data.success) {
-                    backupStatusMap = data.backup_status;
-                    console.log(`Loaded backup status for ${Object.keys(backupStatusMap).length} files`);
-                }
-            } catch (error) {
-                console.error('Error loading backup status:', error);
+    async function loadBackupStatus() {
+        try {
+            const response = await fetch('/api/files/backup-status');
+            const data = await response.json();
+            if (data.success) {
+                backupStatusMap = data.backup_status;
             }
+        } catch (error) {
+            console.error('Error loading backup status:', error);
         }
+    }
 
-        // Load folder statistics (pre-calculated backup stats by folder name)
-        async function loadFolderStats() {
-            try {
-                const response = await fetch('/api/folders/backup-stats');
-                const data = await response.json();
-                
-                if (data.success) {
-                    folderStatsMap = data.folder_stats;
-                    console.log(`Loaded folder stats for ${Object.keys(folderStatsMap).length} folders`);
-                }
-            } catch (error) {
-                console.error('Error loading folder stats:', error);
+    async function loadFolderStats() {
+        try {
+            const response = await fetch('/api/folders/backup-stats');
+            const data = await response.json();
+            if (data.success) {
+                folderStatsMap = data.folder_stats;
             }
+        } catch (error) {
+            console.error('Error loading folder stats:', error);
         }
+    }
 
-        // Load storage info
-        async function loadStorageInfo() {
-            try {
-                const response = await fetch('/api/drive/storage');
-                const data = await response.json();
+    async function loadStorageInfo() {
+        try {
+            const response = await fetch('/api/drive/storage');
+            const data = await response.json();
+            if (data.success) {
+                const storage = data.storage;
+                document.getElementById('storageInfo').style.display = 'block';
+                document.getElementById('storageProgress').style.width = storage.percentage + '%';
+                document.getElementById('storagePercentage').textContent = storage.percentage + '%';
+                document.getElementById('storageText').textContent = 
+                    `${storage.usage_formatted} of ${storage.limit_formatted} used`;
                 
-                if (data.success) {
-                    const storage = data.storage;
-                    document.getElementById('storageInfo').style.display = 'block';
-                    document.getElementById('storageProgress').style.width = storage.percentage + '%';
-                    document.getElementById('storagePercentage').textContent = storage.percentage + '%';
-                    document.getElementById('storageText').textContent = 
-                        `${storage.usage_formatted} of ${storage.limit_formatted} used`;
-                    
-                    const progressBar = document.getElementById('storageProgress');
-                    progressBar.className = storage.percentage > 90 ? 'progress-bar bg-danger' :
-                                          storage.percentage > 75 ? 'progress-bar bg-warning' : 'progress-bar bg-success';
-                }
-            } catch (error) {
-                console.error('Error loading storage info:', error);
+                const progressBar = document.getElementById('storageProgress');
+                progressBar.className = storage.percentage > 90 ? 'progress-bar bg-danger' :
+                                      storage.percentage > 75 ? 'progress-bar bg-warning' : 'progress-bar bg-success';
             }
+        } catch (error) {
+            console.error('Error loading storage info:', error);
         }
+    }
 
-        // Load Drive tree structure
-        async function loadDriveTree() {
-            document.getElementById('loadingOverlay').style.display = 'flex';
-            
-            try {
-                const response = await fetch('/api/drive/tree');
-                const data = await response.json();
-                
-                if (data.success) {
-                    driveTree = data.tree;
-                    renderTree();
-                } else {
-                    document.getElementById('treeContainer').innerHTML = `
-                        <div class="alert alert-danger m-4">
+    async function loadDriveTree() {
+        document.getElementById('loadingOverlay').style.display = 'flex';
+        try {
+            const response = await fetch('/api/drive/tree');
+            const data = await response.json();
+            if (data.success) {
+                driveTree = data.tree;
+                renderTree();
+            } else {
+                document.getElementById('treeContainer').innerHTML = `
+                    <div class="alert-professional alert-professional-error">
+                        <i class="bi bi-x-circle"></i>
+                        <div>
                             <h5>Error loading Drive structure</h5>
                             <p>${data.error}</p>
                         </div>
-                    `;
-                }
-            } catch (error) {
-                console.error('Error loading drive tree:', error);
-                document.getElementById('treeContainer').innerHTML = `
-                    <div class="alert alert-danger m-4">
+                    </div>
+                `;
+            }
+        } catch (error) {
+            document.getElementById('treeContainer').innerHTML = `
+                <div class="alert-professional alert-professional-error">
+                    <i class="bi bi-x-circle"></i>
+                    <div>
                         <h5>Error loading Drive structure</h5>
                         <p>${error.message}</p>
                     </div>
-                `;
-            } finally {
-                document.getElementById('loadingOverlay').style.display = 'none';
+                </div>
+            `;
+        } finally {
+            document.getElementById('loadingOverlay').style.display = 'none';
+        }
+    }
+
+    function renderTree() {
+        const container = document.getElementById('treeContainer');
+        let html = `
+            <div class="tree-header">
+                <div style="flex: 1;">File / Folder</div>
+                <div style="display: flex; gap: 20px;">
+                    <div style="width: 100px; text-align: center;">
+                        <i class="bi bi-amazon dest-icon-aws"></i> AWS S3
+                    </div>
+                    <div style="width: 100px; text-align: center;">
+                        <i class="bi bi-cloud-fill dest-icon-b2"></i> B2
+                    </div>
+                </div>
+            </div>
+        `;
+        html += renderNodes(driveTree, 0);
+        container.innerHTML = html;
+    }
+
+    function hasDestination(folderId, destination, parentPath = []) {
+        const policy = folderPolicies[folderId];
+        if (policy) {
+            return policy.destinations.includes(destination);
+        }
+        for (const parentId of parentPath) {
+            const parentPolicy = folderPolicies[parentId];
+            if (parentPolicy && parentPolicy.destinations.includes(destination)) {
+                return true;
             }
         }
+        return false;
+    }
 
-        // Render tree structure
-        function renderTree() {
-            const container = document.getElementById('treeContainer');
+    function getBackupStatusIcon(nodeId, destination, isFolder, node) {
+        if (!isFolder) {
+            const backupStatus = backupStatusMap[nodeId];
+            if (backupStatus && backupStatus[destination]) {
+                const status = backupStatus[destination].status;
+                const lastSync = backupStatus[destination].last_sync;
+                if (status === 'synced') {
+                    return `<i class="bi bi-check-circle-fill backup-status-icon synced" title="Backed up: ${lastSync || 'Unknown'}"></i>`;
+                } else if (status === 'pending') {
+                    return `<i class="bi bi-clock-fill backup-status-icon pending" title="Pending backup"></i>`;
+                } else if (status === 'failed') {
+                    return `<i class="bi bi-x-circle-fill backup-status-icon failed" title="Backup failed"></i>`;
+                }
+            }
+            return `<i class="bi bi-circle backup-status-icon not-configured" title="Not yet backed up"></i>`;
+        } else {
+            const folderStats = folderStatsMap[node.name];
+            if (folderStats && folderStats[destination]) {
+                const stats = folderStats[destination];
+                if (stats.synced === stats.total && stats.total > 0) {
+                    return `<i class="bi bi-check-circle-fill backup-status-icon synced" title="Fully backed up (${stats.synced}/${stats.total})"></i>`;
+                } else if (stats.synced > 0) {
+                    return `<i class="bi bi-clock-fill backup-status-icon pending" title="Partially backed up (${stats.synced}/${stats.total})"></i>`;
+                } else if (stats.total > 0) {
+                    return `<i class="bi bi-circle backup-status-icon not-configured" title="Not backed up"></i>`;
+                }
+            }
+            return `<i class="bi bi-circle backup-status-icon not-configured" title="No data"></i>`;
+        }
+    }
+
+    function renderNodes(nodes, level, parentPath = []) {
+        if (!nodes || nodes.length === 0) return '';
+        let html = '';
+        
+        for (const node of nodes) {
+            const isFolder = node.type === 'folder';
+            const hasChildren = isFolder && (node.hasChildren || (node.children && node.children.length > 0));
+            const syncStatus = syncStatusMap[node.id];
+            const indent = '  '.repeat(level);
+            const hasAWS = isFolder && hasDestination(node.id, 'aws_s3', parentPath);
+            const hasB2 = isFolder && hasDestination(node.id, 'backblaze_b2', parentPath);
             
-            // Add header
-            let html = `
-                <div class="tree-header">
-                    <div style="flex: 1;">File / Folder</div>
-                    <div style="display: flex; gap: 20px;">
-                        <div style="width: 100px; text-align: center;">
-                            <i class="bi bi-amazon dest-icon-aws"></i> AWS S3
+            let badges = '';
+            if (syncStatus && syncStatus.status === 'synced') {
+                badges += '<span class="badge-synced"><i class="bi bi-check-circle"></i> Synced</span>';
+            }
+            
+            html += `
+                <div class="tree-node" data-node-id="${node.id}">
+                    <div class="tree-node-main">
+                        ${indent}
+                        ${hasChildren ? `
+                            <div class="tree-expand collapsed" onclick="toggleNode(event, '${node.id}', ${node.childrenLoaded || false})">
+                                <i class="bi bi-chevron-down"></i>
+                            </div>
+                        ` : '<span class="tree-indent"></span>'}
+                        <div class="file-icon ${getIconClass(node)}">
+                            ${getIcon(node)}
                         </div>
-                        <div style="width: 100px; text-align: center;">
-                            <i class="bi bi-cloud-fill dest-icon-b2"></i> B2
+                        <div class="file-name">
+                            ${escapeHtml(node.name)}
+                            ${badges}
                         </div>
+                        ${isFolder ? '' : `<div class="file-meta">${node.sizeFormatted || ''}</div>`}
                     </div>
+                    ${isFolder ? `
+                        <div class="tree-node-destinations">
+                            <div class="dest-checkbox-group ${hasAWS ? 'active' : ''}" onclick="event.stopPropagation()">
+                                <input type="checkbox" id="aws-${node.id}" ${hasAWS ? 'checked' : ''}
+                                       onchange="toggleDestination('${node.id}', '${escapeHtml(node.name)}', 'aws_s3', this.checked)">
+                                <label for="aws-${node.id}">
+                                    <i class="bi bi-amazon dest-icon-aws"></i> S3
+                                </label>
+                                ${hasAWS ? getBackupStatusIcon(node.id, 'aws_s3', true, node) : ''}
+                            </div>
+                            <div class="dest-checkbox-group ${hasB2 ? 'active' : ''}" onclick="event.stopPropagation()">
+                                <input type="checkbox" id="b2-${node.id}" ${hasB2 ? 'checked' : ''}
+                                       onchange="toggleDestination('${node.id}', '${escapeHtml(node.name)}', 'backblaze_b2', this.checked)">
+                                <label for="b2-${node.id}">
+                                    <i class="bi bi-cloud-fill dest-icon-b2"></i> B2
+                                </label>
+                                ${hasB2 ? getBackupStatusIcon(node.id, 'backblaze_b2', true, node) : ''}
+                            </div>
+                        </div>
+                    ` : `
+                        <div class="tree-node-destinations">
+                            <div class="backup-status-group">
+                                ${getBackupStatusIcon(node.id, 'aws_s3', false, node)}
+                                ${getBackupStatusIcon(node.id, 'backblaze_b2', false, node)}
+                            </div>
+                        </div>
+                    `}
                 </div>
             `;
             
-            html += renderNodes(driveTree, 0);
-            container.innerHTML = html;
-        }
-
-        // Check if folder has policy with destination (check parents for inheritance)
-        function hasDestination(folderId, destination, parentPath = []) {
-            // If folder has explicit policy, use ONLY that (no inheritance)
-            const policy = folderPolicies[folderId];
-            if (policy) {
-                return policy.destinations.includes(destination);
-            }
-            
-            // No explicit policy - check parent folders for inheritance
-            for (const parentId of parentPath) {
-                const parentPolicy = folderPolicies[parentId];
-                if (parentPolicy && parentPolicy.destinations.includes(destination)) {
-                    return true;
-                }
-            }
-            
-            return false;
-        }
-
-        // Get backup status icon for a file/folder and destination
-        function getBackupStatusIcon(nodeId, destination, isFolder, node) {
-            if (!isFolder) {
-                // For files, check actual backup status
-                const backupStatus = backupStatusMap[nodeId];
-                if (backupStatus && backupStatus[destination]) {
-                    const status = backupStatus[destination].status;
-                    const lastSync = backupStatus[destination].last_sync;
-                    
-                    if (status === 'synced') {
-                        return `<i class="bi bi-check-circle-fill backup-status-icon synced" title="Backed up: ${lastSync || 'Unknown date'}"></i>`;
-                    } else if (status === 'pending') {
-                        return `<i class="bi bi-clock-fill backup-status-icon pending" title="Pending backup"></i>`;
-                    } else if (status === 'failed') {
-                        return `<i class="bi bi-x-circle-fill backup-status-icon failed" title="Backup failed"></i>`;
-                    }
-                }
-                // File not in backup status map = not configured or not yet synced
-                return `<i class="bi bi-circle backup-status-icon not-configured" title="Not yet backed up"></i>`;
-            } else {
-                // For folders, first try to use pre-calculated stats (works before lazy loading!)
-                const folderName = node.name;
-                const folderStats = folderStatsMap[folderName];
-                
-                if (folderStats && folderStats[destination]) {
-                    const stats = folderStats[destination];
-                    const percentage = stats.percentage;
-                    
-                    if (stats.synced === stats.total && stats.total > 0) {
-                        return `<i class="bi bi-check-circle-fill backup-status-icon synced" title="Fully backed up (${stats.synced}/${stats.total})"></i>`;
-                    } else if (stats.synced > 0) {
-                        return `<i class="bi bi-clock-fill backup-status-icon pending" title="Partially backed up (${stats.synced}/${stats.total} - ${percentage}%)"></i>`;
-                    } else if (stats.total > 0) {
-                        return `<i class="bi bi-circle backup-status-icon not-configured" title="Not backed up (0/${stats.total})"></i>`;
-                    }
-                }
-                
-                // Fallback: calculate from children if they're loaded
-                if (node.children && node.children.length > 0) {
-                    const folderStatus = calculateFolderBackupStatus(node, destination);
-                    if (folderStatus.totalFiles === 0) {
-                        return `<i class="bi bi-circle backup-status-icon not-configured" title="No files to backup"></i>`;
-                    }
-                    
-                    const percentage = Math.round((folderStatus.backedUpFiles / folderStatus.totalFiles) * 100);
-                    
-                    if (folderStatus.backedUpFiles === folderStatus.totalFiles) {
-                        return `<i class="bi bi-check-circle-fill backup-status-icon synced" title="Fully backed up (${folderStatus.backedUpFiles}/${folderStatus.totalFiles})"></i>`;
-                    } else if (folderStatus.backedUpFiles > 0) {
-                        return `<i class="bi bi-clock-fill backup-status-icon pending" title="Partially backed up (${folderStatus.backedUpFiles}/${folderStatus.totalFiles} - ${percentage}%)"></i>`;
-                    } else {
-                        return `<i class="bi bi-circle backup-status-icon not-configured" title="Not backed up (0/${folderStatus.totalFiles})"></i>`;
-                    }
-                }
-                
-                // No data available yet
-                return `<i class="bi bi-circle backup-status-icon not-configured" title="No data"></i>`;
-            }
-        }
-
-        // Calculate folder backup status recursively
-        function calculateFolderBackupStatus(node, destination) {
-            let totalFiles = 0;
-            let backedUpFiles = 0;
-            
-            if (!node.children || node.children.length === 0) {
-                return { totalFiles, backedUpFiles };
-            }
-            
-            for (const child of node.children) {
-                if (child.type === 'file') {
-                    totalFiles++;
-                    const backupStatus = backupStatusMap[child.id];
-                    if (backupStatus && backupStatus[destination] && backupStatus[destination].status === 'synced') {
-                        backedUpFiles++;
-                    }
-                } else if (child.type === 'folder' && child.children) {
-                    // Recursively check children
-                    const childStatus = calculateFolderBackupStatus(child, destination);
-                    totalFiles += childStatus.totalFiles;
-                    backedUpFiles += childStatus.backedUpFiles;
-                }
-            }
-            
-            return { totalFiles, backedUpFiles };
-        }
-
-        // Render tree nodes recursively
-        function renderNodes(nodes, level, parentPath = []) {
-            if (!nodes || nodes.length === 0) return '';
-            
-            let html = '';
-            
-            for (const node of nodes) {
-                const isFolder = node.type === 'folder';
-                const hasChildren = isFolder && (node.hasChildren || (node.children && node.children.length > 0));
-                const syncStatus = syncStatusMap[node.id];
-                const indent = '  '.repeat(level);
-                
-                // Check if this folder has destinations configured (includes inheritance)
-                const hasAWS = isFolder && hasDestination(node.id, 'aws_s3', parentPath);
-                const hasB2 = isFolder && hasDestination(node.id, 'backblaze_b2', parentPath);
-                
-                // Build badges
-                let badges = '';
-                if (syncStatus && syncStatus.status === 'synced') {
-                    badges += '<span class="badge-synced"><i class="bi bi-check-circle"></i> Synced</span>';
-                }
-                
+            if (hasChildren) {
+                const newPath = [...parentPath, node.id];
+                const childrenHtml = node.children ? renderNodes(node.children, level + 1, newPath) : '';
                 html += `
-                    <div class="tree-node" data-node-id="${node.id}">
-                        <div class="tree-node-main">
-                            ${indent}
-                            ${hasChildren ? `
-                                <div class="tree-expand collapsed" onclick="toggleNode(event, '${node.id}', ${node.childrenLoaded || false})">
-                                    <i class="bi bi-chevron-down"></i>
-                                </div>
-                            ` : '<span class="tree-indent"></span>'}
-                            <div class="file-icon ${getIconClass(node)}">
-                                ${getIcon(node)}
-                            </div>
-                            <div class="file-name">
-                                ${escapeHtml(node.name)}
-                                ${badges}
-                            </div>
-                            ${isFolder ? '' : `
-                                <div class="file-meta">
-                                    ${node.sizeFormatted || ''}
-                                </div>
-                            `}
-                        </div>
-                        ${isFolder ? `
-                            <div class="tree-node-destinations">
-                                <div class="dest-checkbox-group ${hasAWS ? 'active' : ''}" onclick="event.stopPropagation()">
-                                    <input type="checkbox" 
-                                           id="aws-${node.id}" 
-                                           ${hasAWS ? 'checked' : ''}
-                                           onchange="toggleDestination('${node.id}', '${escapeHtml(node.name)}', 'aws_s3', this.checked)">
-                                    <label for="aws-${node.id}">
-                                        <i class="bi bi-amazon dest-icon-aws"></i> S3
-                                    </label>
-                                    ${hasAWS ? getBackupStatusIcon(node.id, 'aws_s3', true, node) : ''}
-                                </div>
-                                <div class="dest-checkbox-group ${hasB2 ? 'active' : ''}" onclick="event.stopPropagation()">
-                                    <input type="checkbox" 
-                                           id="b2-${node.id}" 
-                                           ${hasB2 ? 'checked' : ''}
-                                           onchange="toggleDestination('${node.id}', '${escapeHtml(node.name)}', 'backblaze_b2', this.checked)">
-                                    <label for="b2-${node.id}">
-                                        <i class="bi bi-cloud-fill dest-icon-b2"></i> B2
-                                    </label>
-                                    ${hasB2 ? getBackupStatusIcon(node.id, 'backblaze_b2', true, node) : ''}
-                                </div>
-                            </div>
-                        ` : `
-                            <div class="tree-node-destinations">
-                                <div class="backup-status-group">
-                                    ${getBackupStatusIcon(node.id, 'aws_s3', false, node)}
-                                    ${getBackupStatusIcon(node.id, 'backblaze_b2', false, node)}
-                                </div>
-                            </div>
-                        `}
+                    <div class="tree-children collapsed" id="children-${node.id}" data-loaded="${node.childrenLoaded || false}">
+                        ${childrenHtml}
                     </div>
                 `;
-                
-                // Render children container (collapsed by default)
-                if (hasChildren) {
-                    const newPath = [...parentPath, node.id];
-                    const childrenHtml = node.children ? renderNodes(node.children, level + 1, newPath) : '';
-                    html += `
-                        <div class="tree-children collapsed" id="children-${node.id}" data-loaded="${node.childrenLoaded || false}">
-                            ${childrenHtml}
-                        </div>
-                    `;
-                }
             }
-            
-            return html;
         }
+        return html;
+    }
 
-        // Track expanded nodes
-        let expandedNodes = new Set();
+    async function toggleNode(event, nodeId, childrenLoaded) {
+        event.stopPropagation();
+        const expand = event.currentTarget;
+        const children = document.getElementById(`children-${nodeId}`);
         
-        // Toggle destination for a folder - SIMPLIFIED
-        async function toggleDestination(folderId, folderName, destination, enabled) {
-            try {
-                // Get parent path to check what this folder currently inherits
-                const parentPath = getParentPath(folderId);
-                const currentlyHasAWS = hasDestination(folderId, 'aws_s3', parentPath);
-                const currentlyHasB2 = hasDestination(folderId, 'backblaze_b2', parentPath);
-                
-                // Determine what explicit policy we need to create
-                let newDests = [];
-                
-                // If folder doesn't have explicit policy, base on current effective state
-                if (!folderPolicies[folderId]) {
-                    if (currentlyHasAWS) newDests.push('aws_s3');
-                    if (currentlyHasB2) newDests.push('backblaze_b2');
-                } else {
-                    // Start with explicit policy
-                    newDests = [...folderPolicies[folderId].destinations];
-                }
-                
-                // Update based on toggle
-                if (enabled) {
-                    if (!newDests.includes(destination)) {
-                        newDests.push(destination);
-                    }
-                } else {
-                    newDests = newDests.filter(d => d !== destination);
-                }
-                
-                // Now we have explicit override - save or delete policy
-                if (newDests.length === 0) {
-                    // No destinations - remove policy (will inherit parent if available)
-                    if (folderPolicies[folderId]) {
-                        const response = await fetch(`/api/folders/policies/${folderId}`, {
-                            method: 'DELETE'
-                        });
-                        
-                        if (response.ok) {
-                            delete folderPolicies[folderId];
-                            console.log(`Removed policy for ${folderName}`);
+        if (children.classList.contains('collapsed')) {
+            if (!childrenLoaded) {
+                try {
+                    const response = await fetch(`/api/drive/folder/${nodeId}/children`);
+                    const data = await response.json();
+                    if (data.success) {
+                        const node = findNodeById(driveTree, nodeId);
+                        if (node) {
+                            node.children = data.children;
+                            node.childrenLoaded = true;
+                            children.innerHTML = renderNodes(data.children, getNodeLevel(nodeId) + 1, getNodePath(nodeId));
+                            children.dataset.loaded = 'true';
                         }
                     }
-                } else {
-                    // Create explicit policy with these destinations
-                    const method = folderPolicies[folderId] ? 'PUT' : 'POST';
-                    const url = folderPolicies[folderId] 
-                        ? `/api/folders/policies/${folderId}`
-                        : '/api/folders/policies';
-                    
-                    const body = {
+                } catch (error) {
+                    console.error('Error loading children:', error);
+                }
+            }
+            expand.classList.remove('collapsed');
+            children.classList.remove('collapsed');
+        } else {
+            expand.classList.add('collapsed');
+            children.classList.add('collapsed');
+        }
+    }
+
+    async function toggleDestination(folderId, folderName, destination, enabled) {
+        try {
+            if (enabled) {
+                const response = await fetch('/api/folders/policies', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
                         folder_id: folderId,
                         folder_name: folderName,
                         folder_path: folderName,
-                        destinations: newDests
-                    };
-                    
-                    const response = await fetch(url, {
-                        method: method,
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(body)
-                    });
-                    
-                    if (response.ok) {
-                        folderPolicies[folderId] = { destinations: newDests };
-                        const destName = destination === 'aws_s3' ? 'AWS S3' : 'Backblaze B2';
-                        console.log(`${enabled ? 'Added' : 'Removed'} ${destName} for ${folderName}`);
+                        destinations: [destination]
+                    })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    if (!folderPolicies[folderId]) {
+                        folderPolicies[folderId] = {destinations: []};
+                    }
+                    if (!folderPolicies[folderId].destinations.includes(destination)) {
+                        folderPolicies[folderId].destinations.push(destination);
                     }
                 }
-                
-                // Save expanded state
-                saveExpandedState();
-                
-                // Re-render tree to update all children states
-                renderTree();
-                
-                // Restore expanded state
-                restoreExpandedState();
-                
-            } catch (error) {
-                console.error('Error toggling destination:', error);
-                alert('Error updating backup configuration: ' + error.message);
-            }
-        }
-        
-        // Save which nodes are expanded
-        function saveExpandedState() {
-            expandedNodes.clear();
-            document.querySelectorAll('.tree-children:not(.collapsed)').forEach(el => {
-                const nodeId = el.id.replace('children-', '');
-                expandedNodes.add(nodeId);
-            });
-        }
-        
-        // Restore expanded state after re-render
-        function restoreExpandedState() {
-            expandedNodes.forEach(nodeId => {
-                const childrenDiv = document.getElementById(`children-${nodeId}`);
-                const expandIcon = document.querySelector(`[onclick*="'${nodeId}'"]`);
-                if (childrenDiv && expandIcon) {
-                    childrenDiv.classList.remove('collapsed');
-                    expandIcon.classList.remove('collapsed');
-                }
-            });
-        }
-
-        // Toggle node expansion with lazy loading
-        async function toggleNode(event, nodeId, childrenLoaded) {
-            event.stopPropagation();
-            const childrenDiv = document.getElementById(`children-${nodeId}`);
-            const expandIcon = event.currentTarget;
-            
-            if (childrenDiv.classList.contains('collapsed')) {
-                // Track that this node is expanded
-                expandedNodes.add(nodeId);
-                
-                // Expanding - load children if not loaded yet
-                if (!childrenLoaded && childrenDiv.dataset.loaded === 'false') {
-                    expandIcon.innerHTML = '<i class="bi bi-hourglass-split"></i>';
-                    
-                    try {
-                        const response = await fetch(`/api/drive/folder/${nodeId}`);
-                        const data = await response.json();
-                        
-                        if (data.success && data.children) {
-                            const node = findNodeById(driveTree, nodeId);
-                            if (node) {
-                                node.children = data.children;
-                                node.childrenLoaded = true;
-                            }
-                            
-                            const level = getNodeLevel(nodeId);
-                            const parentPath = getParentPath(nodeId);
-                            childrenDiv.innerHTML = renderNodes(data.children, level + 1, [...parentPath, nodeId]);
-                            childrenDiv.dataset.loaded = 'true';
-                        }
-                    } catch (error) {
-                        console.error('Error loading children:', error);
-                        childrenDiv.innerHTML = '<div class="alert alert-danger m-2">Error loading folder contents</div>';
-                    }
-                    
-                    expandIcon.innerHTML = '<i class="bi bi-chevron-down"></i>';
-                }
-                
-                childrenDiv.classList.remove('collapsed');
-                expandIcon.classList.remove('collapsed');
             } else {
-                // Track that this node is collapsed
-                expandedNodes.delete(nodeId);
-                childrenDiv.classList.add('collapsed');
-                expandIcon.classList.add('collapsed');
-            }
-        }
-        
-        // Get node level and parent path (helpers)
-        function getNodeLevel(nodeId) {
-            return 0; // Simplified
-        }
-        
-        function getParentPath(nodeId) {
-            // Build parent path by traversing tree
-            const path = [];
-            findParentPath(driveTree, nodeId, path);
-            return path;
-        }
-        
-        function findParentPath(nodes, targetId, path) {
-            for (const node of nodes) {
-                if (node.id === targetId) {
-                    return true;
-                }
-                if (node.children) {
-                    path.push(node.id);
-                    if (findParentPath(node.children, targetId, path)) {
-                        return true;
+                const currentPolicy = folderPolicies[folderId];
+                if (currentPolicy) {
+                    const remainingDests = currentPolicy.destinations.filter(d => d !== destination);
+                    if (remainingDests.length > 0) {
+                        const response = await fetch('/api/folders/policies', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                folder_id: folderId,
+                                folder_name: folderName,
+                                folder_path: folderName,
+                                destinations: remainingDests
+                            })
+                        });
+                        const data = await response.json();
+                        if (data.success) {
+                            folderPolicies[folderId].destinations = remainingDests;
+                        }
+                    } else {
+                        const response = await fetch(`/api/folders/policies/${folderId}`, {method: 'DELETE'});
+                        const data = await response.json();
+                        if (data.success) {
+                            delete folderPolicies[folderId];
+                        }
                     }
-                    path.pop();
                 }
             }
-            return false;
+        } catch (error) {
+            console.error('Error toggling destination:', error);
         }
-        
-        // Expand all nodes
-        function expandAll() {
-            document.querySelectorAll('.tree-children').forEach(el => {
-                el.classList.remove('collapsed');
-                const nodeId = el.id.replace('children-', '');
-                expandedNodes.add(nodeId);
-            });
-            document.querySelectorAll('.tree-expand').forEach(el => el.classList.remove('collapsed'));
-        }
+    }
 
-        // Collapse all nodes
-        function collapseAll() {
-            expandedNodes.clear();
-            document.querySelectorAll('.tree-children').forEach(el => el.classList.add('collapsed'));
-            document.querySelectorAll('.tree-expand').forEach(el => el.classList.add('collapsed'));
-        }
+    function expandAll() {
+        document.querySelectorAll('.tree-expand.collapsed').forEach(el => el.click());
+    }
 
-        // Find node by ID in tree
-        function findNodeById(nodes, id) {
-            for (const node of nodes) {
-                if (node.id === id) return node;
-                if (node.children) {
-                    const found = findNodeById(node.children, id);
-                    if (found) return found;
-                }
+    function collapseAll() {
+        document.querySelectorAll('.tree-expand:not(.collapsed)').forEach(el => el.click());
+    }
+
+    function getIconClass(node) {
+        if (node.type === 'folder') return 'folder';
+        const mimeType = node.mimeType || '';
+        if (mimeType.includes('document')) return 'document';
+        if (mimeType.includes('spreadsheet')) return 'spreadsheet';
+        if (mimeType.includes('presentation')) return 'presentation';
+        if (mimeType.includes('image')) return 'image';
+        if (mimeType.includes('video')) return 'video';
+        if (mimeType.includes('pdf')) return 'pdf';
+        return 'default';
+    }
+
+    function getIcon(node) {
+        if (node.type === 'folder') return '<i class="bi bi-folder-fill"></i>';
+        const iconClass = getIconClass(node);
+        const icons = {
+            document: 'bi-file-earmark-text',
+            spreadsheet: 'bi-file-earmark-spreadsheet',
+            presentation: 'bi-file-earmark-slides',
+            image: 'bi-file-earmark-image',
+            video: 'bi-file-earmark-play',
+            pdf: 'bi-file-earmark-pdf',
+            default: 'bi-file-earmark'
+        };
+        return `<i class="bi ${icons[iconClass] || icons.default}"></i>`;
+    }
+
+    function findNodeById(nodes, id) {
+        for (const node of nodes) {
+            if (node.id === id) return node;
+            if (node.children) {
+                const found = findNodeById(node.children, id);
+                if (found) return found;
             }
-            return null;
         }
+        return null;
+    }
 
-        // Get icon class
-        function getIconClass(node) {
-            if (node.type === 'folder') return 'folder';
-            const mime = node.mimeType || '';
-            if (mime.includes('document')) return 'document';
-            if (mime.includes('spreadsheet')) return 'spreadsheet';
-            if (mime.includes('presentation')) return 'presentation';
-            if (mime.includes('image')) return 'image';
-            if (mime.includes('video')) return 'video';
-            if (mime.includes('pdf')) return 'pdf';
-            return 'default';
+    function getNodeLevel(nodeId) {
+        let level = 0;
+        const node = document.querySelector(`[data-node-id="${nodeId}"]`);
+        if (node) {
+            let parent = node.parentElement;
+            while (parent && !parent.classList.contains('tree-container')) {
+                if (parent.classList.contains('tree-children')) level++;
+                parent = parent.parentElement;
+            }
         }
+        return level;
+    }
 
-        // Get icon
-        function getIcon(node) {
-            if (node.type === 'folder') return '<i class="bi bi-folder-fill"></i>';
-            const mime = node.mimeType || '';
-            if (mime.includes('document')) return '<i class="bi bi-file-text"></i>';
-            if (mime.includes('spreadsheet')) return '<i class="bi bi-table"></i>';
-            if (mime.includes('presentation')) return '<i class="bi bi-file-slides"></i>';
-            if (mime.includes('image')) return '<i class="bi bi-file-image"></i>';
-            if (mime.includes('video')) return '<i class="bi bi-file-play"></i>';
-            if (mime.includes('pdf')) return '<i class="bi bi-file-pdf"></i>';
-            return '<i class="bi bi-file-earmark"></i>';
+    function getNodePath(nodeId) {
+        const path = [];
+        let node = document.querySelector(`[data-node-id="${nodeId}"]`);
+        while (node) {
+            const parent = node.parentElement.closest('.tree-children');
+            if (parent) {
+                const parentId = parent.id.replace('children-', '');
+                path.unshift(parentId);
+                node = document.querySelector(`[data-node-id="${parentId}"]`);
+            } else {
+                break;
+            }
         }
+        return path;
+    }
 
-        // Escape HTML
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        // Initialize
-        async function init() {
-            await loadStorageInfo();
-            await loadFolderPolicies();
-            await loadSyncStatus();
-            await loadBackupStatus();
-            await loadFolderStats();  // Load pre-calculated folder stats BEFORE tree
-            await loadDriveTree();
-            
-            // Refresh every 30 seconds
-            setInterval(async () => {
-                await loadSyncStatus();
-                await loadBackupStatus();
-                await loadFolderStats();  // Refresh folder stats too
-                await loadFolderPolicies();
-                renderTree();
-            }, 30000);
-        }
-
-        init();
-    </script>
-</body>
-</html>
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+</script>
+{% endblock %}

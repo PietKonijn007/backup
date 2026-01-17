@@ -119,13 +119,18 @@ def get_backblaze_b2_stats():
         total_size = 0
         files_by_status = {'synced': 0, 'pending': 0, 'failed': 0}
         
-        # List all files
-        for file_version, folder_to_list in bucket.ls(recursive=True):
-            if file_version:
-                total_files += 1
-                total_size += file_version.size
-                # All files in bucket are considered 'synced'
-                files_by_status['synced'] += 1
+        # List all files with proper pagination
+        # Use ls() which handles pagination automatically
+        try:
+            for file_version, folder_name in bucket.ls(recursive=True, latest_only=True):
+                if file_version is not None:  # file_version is None for folders
+                    total_files += 1
+                    total_size += file_version.size
+                    files_by_status['synced'] += 1
+        except Exception as e:
+            logger.error(f"Error listing B2 files: {e}")
+            # If listing fails, try to get bucket info another way
+            pass
         
         return {
             'enabled': True,
