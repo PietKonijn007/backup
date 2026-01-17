@@ -1,9 +1,14 @@
 """
 Real-time bucket inspection for AWS S3 and Backblaze B2
 """
+import os
 import yaml
 from datetime import datetime
+from dotenv import load_dotenv
 from src.utils.logger import setup_logger
+
+# Load environment variables
+load_dotenv()
 
 logger = setup_logger('bucket-inspector')
 
