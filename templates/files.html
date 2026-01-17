@@ -586,8 +586,10 @@
 
     async function toggleNode(event, nodeId, childrenLoaded) {
         event.stopPropagation();
-        const expand = event.currentTarget;
+        const expand = document.querySelector(`.tree-expand[data-node-id="${nodeId}"]`);
         const children = document.getElementById(`children-${nodeId}`);
+        
+        if (!expand || !children) return;
         
         if (children.classList.contains('collapsed')) {
             if (!childrenLoaded) {
