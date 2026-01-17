@@ -1,0 +1,31 @@
+{
+  "Rules": [
+    {
+      "ID": "BackupArchivalPolicy",
+      "Status": "Enabled",
+      "Filter": {
+        "Prefix": ""
+      },
+      "Transitions": [
+        {
+          "Days": 15,
+          "StorageClass": "GLACIER"
+        },
+        {
+          "Days": 105,
+          "StorageClass": "DEEP_ARCHIVE"
+        }
+      ],
+      "NoncurrentVersionTransitions": [
+        {
+          "NoncurrentDays": 15,
+          "StorageClass": "GLACIER"
+        },
+        {
+          "NoncurrentDays": 105,
+          "StorageClass": "DEEP_ARCHIVE"
+        }
+      ]
+    }
+  ]
+}

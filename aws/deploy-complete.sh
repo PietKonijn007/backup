@@ -69,7 +69,13 @@ aws s3api put-bucket-encryption \
     --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}' \
     --region $REGION || true
 
-echo "S3 bucket configured with versioning and encryption"
+# Apply lifecycle policy for cost optimization (Glacier after 15 days)
+aws s3api put-bucket-lifecycle-configuration \
+    --bucket $S3_BUCKET_NAME \
+    --lifecycle-configuration file://aws/s3-lifecycle-policy.json \
+    --region $REGION || true
+
+echo "S3 bucket configured with versioning, encryption, and lifecycle policies"
 echo ""
 
 # Step 2: Store environment variables in Parameter Store

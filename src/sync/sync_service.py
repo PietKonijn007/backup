@@ -9,6 +9,7 @@ from src.google_sync.drive import create_drive_manager
 from src.storage.storage_manager import create_storage_manager
 from src.database import folder_policies
 from src.utils.logger import setup_logger
+from src.utils.deduplication_monitor import dedup_monitor
 
 logger = setup_logger('sync-service')
 
@@ -102,9 +103,10 @@ class SyncService:
             # Get file metadata
             metadata = self.drive_manager.get_file_metadata(file_id)
             file_name = metadata['name']
-            file_size = metadata.get('size', 0)
+            file_size = int(metadata.get('size', 0))
+            modified_time = metadata.get('modifiedTime', '')
             
-            logger.info(f"Syncing file: {file_name} (size: {self._format_size(file_size)})")
+            logger.info(f"Syncing file: {file_name} (size: {self._format_size(file_size)}, modified: {modified_time})")
             
             # Determine remote path - preserve full Drive hierarchy
             if remote_path is None:
@@ -126,18 +128,60 @@ class SyncService:
                     }
                 logger.info(f"Using destinations from folder policy: {destinations}")
             
-            # Check if file already exists in all destinations with same size
-            all_exist = True
+            # Enhanced deduplication: Check if file already exists in all destinations with same size
+            dedup_results = {}
+            all_exist_and_match = True
+            
             for dest in destinations:
                 exists, existing_size = self.storage_manager.check_file_exists(remote_path, dest)
-                if not exists or existing_size != file_size:
-                    all_exist = False
-                    break
+                dedup_results[dest] = {
+                    'exists': exists,
+                    'size_match': exists and existing_size == file_size,
+                    'existing_size': existing_size
+                }
+                
+                if not exists:
+                    logger.info(f"File does not exist in {dest}: {file_name}")
+                    all_exist_and_match = False
+                elif existing_size != file_size:
+                    logger.info(f"File size mismatch in {dest}: {file_name} (local: {self._format_size(file_size)}, remote: {self._format_size(existing_size)})")
+                    all_exist_and_match = False
+                else:
+                    logger.info(f"File already exists with matching size in {dest}: {file_name}")
             
-            if all_exist:
-                logger.info(f"File already exists in all destinations with same size, skipping: {file_name}")
+            # If file exists in all destinations with same size, skip upload
+            if all_exist_and_match:
+                logger.info(f"DEDUPLICATION: Skipping upload - file already exists in all destinations with same size: {file_name}")
+                
+                # Record deduplication savings
+                dedup_monitor.record_deduplication(file_name, file_size, destinations)
+                
+                # Update database to reflect that file is already synced
+                for dest in destinations:
+                    folder_policies.update_file_destination_status(
+                        file_id=file_id,
+                        destination=dest,
+                        status='synced',
+                        remote_path=remote_path,
+                        size=file_size,
+                        error_message=None
+                    )
+                
                 return {
                     'success': True,
+                    'file_name': file_name,
+                    'file_id': file_id,
+                    'size': file_size,
+                    'size_formatted': self._format_size(file_size),
+                    'remote_path': remote_path,
+                    'destinations': {dest: {'success': True, 'skipped': True, 'reason': 'File already exists with same size'} for dest in destinations},
+                    'skipped': True,
+                    'reason': 'File already exists in all destinations with same size',
+                    'deduplication_savings': self._format_size(file_size)
+                }
+            
+            # Record that we're checking this file (not skipped)
+            dedup_monitor.record_file_check(file_name, file_size, False, destinations)
                     'file_name': file_name,
                     'file_id': file_id,
                     'size': file_size,
@@ -215,13 +259,13 @@ class SyncService:
     
     def sync_multiple_files(self, file_ids: List[str]) -> Dict:
         """
-        Sync multiple files from Google Drive to S3
+        Sync multiple files from Google Drive to cloud storage destinations
         
         Args:
             file_ids: List of Google Drive file IDs
             
         Returns:
-            dict: Sync results with statistics
+            dict: Sync results with enhanced statistics including deduplication savings
         """
         logger.info(f"Starting batch sync for {len(file_ids)} files")
         
@@ -229,7 +273,9 @@ class SyncService:
         success_count = 0
         error_count = 0
         skipped_count = 0
+        uploaded_count = 0
         total_size = 0
+        deduplication_savings = 0
         
         for file_id in file_ids:
             result = self.sync_file(file_id)
@@ -237,17 +283,34 @@ class SyncService:
             
             if result['success']:
                 success_count += 1
-                total_size += result.get('size', 0)
+                file_size = result.get('size', 0)
+                total_size += file_size
+                
                 if result.get('skipped', False):
                     skipped_count += 1
+                    deduplication_savings += file_size
+                    logger.debug(f"Deduplication saved: {self._format_size(file_size)} for {result.get('file_name', 'unknown')}")
+                else:
+                    uploaded_count += 1
             else:
                 error_count += 1
         
-        uploaded_count = success_count - skipped_count
-        logger.info(f"Batch sync complete: {uploaded_count} uploaded, {skipped_count} skipped, {error_count} failed")
+        logger.info(f"Batch sync complete: {uploaded_count} uploaded, {skipped_count} skipped (deduplication), {error_count} failed")
+        logger.info(f"Deduplication savings: {self._format_size(deduplication_savings)} ({skipped_count} files)")
         
         return {
             'success': True,
+            'total': len(file_ids),
+            'uploaded': uploaded_count,
+            'skipped': skipped_count,
+            'failed': error_count,
+            'success_count': success_count,
+            'total_size': total_size,
+            'total_size_formatted': self._format_size(total_size),
+            'deduplication_savings': deduplication_savings,
+            'deduplication_savings_formatted': self._format_size(deduplication_savings),
+            'results': results
+        }
             'results': results,
             'statistics': {
                 'total': len(file_ids),
