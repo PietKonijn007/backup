@@ -459,6 +459,11 @@
         `;
         html += renderNodes(driveTree, 0);
         container.innerHTML = html;
+        
+        // Set indeterminate state on checkboxes
+        document.querySelectorAll('input[data-indeterminate="true"]').forEach(checkbox => {
+            checkbox.indeterminate = true;
+        });
     }
 
     function hasDestination(folderId, destination, parentPath = []) {
@@ -470,6 +475,26 @@
             const parentPolicy = folderPolicies[parentId];
             if (parentPolicy && parentPolicy.destinations.includes(destination)) {
                 return true;
+            }
+        }
+        return false;
+    }
+
+    function hasChildrenWithDestination(node, destination) {
+        if (!node.children || node.children.length === 0) {
+            return false;
+        }
+        
+        for (const child of node.children) {
+            if (child.type === 'folder') {
+                const childPolicy = folderPolicies[child.id];
+                if (childPolicy && childPolicy.destinations.includes(destination)) {
+                    return true;
+                }
+                // Recursively check grandchildren
+                if (hasChildrenWithDestination(child, destination)) {
+                    return true;
+                }
             }
         }
         return false;
@@ -518,6 +543,10 @@
             const hasAWS = isFolder && hasDestination(node.id, 'aws_s3', parentPath);
             const hasB2 = isFolder && hasDestination(node.id, 'backblaze_b2', parentPath);
             
+            // Check if children have destinations (for indeterminate state)
+            const childrenHaveAWS = isFolder && !hasAWS && hasChildrenWithDestination(node, 'aws_s3');
+            const childrenHaveB2 = isFolder && !hasB2 && hasChildrenWithDestination(node, 'backblaze_b2');
+            
             let badges = '';
             if (syncStatus && syncStatus.status === 'synced') {
                 badges += '<span class="badge-synced"><i class="bi bi-check-circle"></i> Synced</span>';
@@ -543,21 +572,23 @@
                     </div>
                     ${isFolder ? `
                         <div class="tree-node-destinations">
-                            <div class="dest-checkbox-group ${hasAWS ? 'active' : ''}">
+                            <div class="dest-checkbox-group ${hasAWS || childrenHaveAWS ? 'active' : ''}">
                                 <input type="checkbox" id="aws-${node.id}" ${hasAWS ? 'checked' : ''}
-                                       data-folder-id="${node.id}" data-folder-name="${escapeHtml(node.name)}" data-destination="aws_s3">
+                                       data-folder-id="${node.id}" data-folder-name="${escapeHtml(node.name)}" data-destination="aws_s3"
+                                       ${childrenHaveAWS ? 'data-indeterminate="true"' : ''}>
                                 <label for="aws-${node.id}">
                                     <i class="bi bi-amazon dest-icon-aws"></i> S3
                                 </label>
-                                ${hasAWS ? getBackupStatusIcon(node.id, 'aws_s3', true, node) : ''}
+                                ${hasAWS || childrenHaveAWS ? getBackupStatusIcon(node.id, 'aws_s3', true, node) : ''}
                             </div>
-                            <div class="dest-checkbox-group ${hasB2 ? 'active' : ''}">
+                            <div class="dest-checkbox-group ${hasB2 || childrenHaveB2 ? 'active' : ''}">
                                 <input type="checkbox" id="b2-${node.id}" ${hasB2 ? 'checked' : ''}
-                                       data-folder-id="${node.id}" data-folder-name="${escapeHtml(node.name)}" data-destination="backblaze_b2">
+                                       data-folder-id="${node.id}" data-folder-name="${escapeHtml(node.name)}" data-destination="backblaze_b2"
+                                       ${childrenHaveB2 ? 'data-indeterminate="true"' : ''}>
                                 <label for="b2-${node.id}">
                                     <i class="bi bi-cloud-fill dest-icon-b2"></i> B2
                                 </label>
-                                ${hasB2 ? getBackupStatusIcon(node.id, 'backblaze_b2', true, node) : ''}
+                                ${hasB2 || childrenHaveB2 ? getBackupStatusIcon(node.id, 'backblaze_b2', true, node) : ''}
                             </div>
                         </div>
                     ` : `
@@ -612,6 +643,11 @@
                             children.innerHTML = renderNodes(data.children, getNodeLevel(nodeId) + 1, getNodePath(nodeId));
                             children.dataset.loaded = 'true';
                             console.log('Children loaded and rendered');
+                            
+                            // Set indeterminate state on newly rendered checkboxes
+                            children.querySelectorAll('input[data-indeterminate="true"]').forEach(checkbox => {
+                                checkbox.indeterminate = true;
+                            });
                         }
                     }
                 } catch (error) {
@@ -630,7 +666,31 @@
 
     async function toggleDestination(folderId, folderName, destination, enabled) {
         try {
+            // Get current destinations for this folder
+            const currentPolicy = folderPolicies[folderId];
+            let currentDestinations = currentPolicy ? [...currentPolicy.destinations] : [];
+            
+            // Update destinations array
             if (enabled) {
+                if (!currentDestinations.includes(destination)) {
+                    currentDestinations.push(destination);
+                }
+            } else {
+                currentDestinations = currentDestinations.filter(d => d !== destination);
+            }
+            
+            // If no destinations remain, delete the policy
+            if (currentDestinations.length === 0) {
+                const response = await fetch(`/api/folders/policies/${folderId}`, {method: 'DELETE'});
+                const data = await response.json();
+                if (data.success) {
+                    delete folderPolicies[folderId];
+                    console.log(`Removed policy for folder ${folderId}`);
+                } else {
+                    console.error('Failed to delete policy:', data.error);
+                }
+            } else {
+                // Add or update the policy with all destinations
                 const response = await fetch('/api/folders/policies', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
@@ -638,7 +698,7 @@
                         folder_id: folderId,
                         folder_name: folderName,
                         folder_path: folderName,
-                        destinations: [destination]
+                        destinations: currentDestinations
                     })
                 });
                 const data = await response.json();
@@ -646,36 +706,10 @@
                     if (!folderPolicies[folderId]) {
                         folderPolicies[folderId] = {destinations: []};
                     }
-                    if (!folderPolicies[folderId].destinations.includes(destination)) {
-                        folderPolicies[folderId].destinations.push(destination);
-                    }
-                }
-            } else {
-                const currentPolicy = folderPolicies[folderId];
-                if (currentPolicy) {
-                    const remainingDests = currentPolicy.destinations.filter(d => d !== destination);
-                    if (remainingDests.length > 0) {
-                        const response = await fetch('/api/folders/policies', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({
-                                folder_id: folderId,
-                                folder_name: folderName,
-                                folder_path: folderName,
-                                destinations: remainingDests
-                            })
-                        });
-                        const data = await response.json();
-                        if (data.success) {
-                            folderPolicies[folderId].destinations = remainingDests;
-                        }
-                    } else {
-                        const response = await fetch(`/api/folders/policies/${folderId}`, {method: 'DELETE'});
-                        const data = await response.json();
-                        if (data.success) {
-                            delete folderPolicies[folderId];
-                        }
-                    }
+                    folderPolicies[folderId].destinations = currentDestinations;
+                    console.log(`Updated policy for folder ${folderId}:`, currentDestinations);
+                } else {
+                    console.error('Failed to update policy:', data.error);
                 }
             }
         } catch (error) {

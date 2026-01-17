@@ -551,7 +551,7 @@ def get_folder_policies():
 @api_bp.route('/folders/policies', methods=['POST'])
 @login_required
 def add_folder_policy():
-    """Add folder with destination policy"""
+    """Add or update folder with destination policy"""
     try:
         from src.database import folder_policies
         data = request.get_json()
@@ -573,27 +573,40 @@ def add_folder_policy():
                 'error': 'At least one destination must be selected'
             }), 400
         
-        success = folder_policies.add_folder_policy(
-            folder_id=folder_id,
-            folder_name=folder_name,
-            folder_path=folder_path,
-            destinations=destinations
-        )
+        # Check if policy already exists
+        existing_policy = folder_policies.get_folder_policy(folder_id)
+        
+        if existing_policy:
+            # Update existing policy
+            success = folder_policies.update_folder_policy(
+                folder_id=folder_id,
+                destinations=destinations
+            )
+            action = 'Updated'
+        else:
+            # Add new policy
+            success = folder_policies.add_folder_policy(
+                folder_id=folder_id,
+                folder_name=folder_name,
+                folder_path=folder_path,
+                destinations=destinations
+            )
+            action = 'Added'
         
         if success:
-            logger.info(f"Added folder policy: {folder_name} -> {destinations}")
+            logger.info(f"{action} folder policy: {folder_name} -> {destinations}")
             return jsonify({
                 'success': True,
-                'message': f'Added folder policy for {folder_name}'
+                'message': f'{action} folder policy for {folder_name}'
             })
         else:
             return jsonify({
                 'success': False,
-                'error': 'Failed to add folder policy (may already exist)'
+                'error': f'Failed to {action.lower()} folder policy'
             }), 400
             
     except Exception as e:
-        logger.error(f"Error adding folder policy: {e}")
+        logger.error(f"Error adding/updating folder policy: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
