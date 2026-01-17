@@ -459,42 +459,20 @@
         `;
         html += renderNodes(driveTree, 0);
         container.innerHTML = html;
-        
-        // Set indeterminate state on checkboxes
-        document.querySelectorAll('input[data-indeterminate="true"]').forEach(checkbox => {
-            checkbox.indeterminate = true;
-        });
     }
 
     function hasDestination(folderId, destination, parentPath = []) {
+        // Check if this folder has an explicit policy
         const policy = folderPolicies[folderId];
-        if (policy) {
-            return policy.destinations.includes(destination);
+        if (policy && policy.destinations.includes(destination)) {
+            return true;
         }
+        
+        // Check if any parent folder has this destination (inheritance)
         for (const parentId of parentPath) {
             const parentPolicy = folderPolicies[parentId];
             if (parentPolicy && parentPolicy.destinations.includes(destination)) {
                 return true;
-            }
-        }
-        return false;
-    }
-
-    function hasChildrenWithDestination(node, destination) {
-        if (!node.children || node.children.length === 0) {
-            return false;
-        }
-        
-        for (const child of node.children) {
-            if (child.type === 'folder') {
-                const childPolicy = folderPolicies[child.id];
-                if (childPolicy && childPolicy.destinations.includes(destination)) {
-                    return true;
-                }
-                // Recursively check grandchildren
-                if (hasChildrenWithDestination(child, destination)) {
-                    return true;
-                }
             }
         }
         return false;
@@ -540,12 +518,10 @@
             const hasChildren = isFolder && (node.hasChildren || (node.children && node.children.length > 0));
             const syncStatus = syncStatusMap[node.id];
             const indent = '  '.repeat(level);
+            
+            // Check if folder has destination (explicit or inherited)
             const hasAWS = isFolder && hasDestination(node.id, 'aws_s3', parentPath);
             const hasB2 = isFolder && hasDestination(node.id, 'backblaze_b2', parentPath);
-            
-            // Check if children have destinations (for indeterminate state)
-            const childrenHaveAWS = isFolder && !hasAWS && hasChildrenWithDestination(node, 'aws_s3');
-            const childrenHaveB2 = isFolder && !hasB2 && hasChildrenWithDestination(node, 'backblaze_b2');
             
             let badges = '';
             if (syncStatus && syncStatus.status === 'synced') {
@@ -572,23 +548,21 @@
                     </div>
                     ${isFolder ? `
                         <div class="tree-node-destinations">
-                            <div class="dest-checkbox-group ${hasAWS || childrenHaveAWS ? 'active' : ''}">
+                            <div class="dest-checkbox-group ${hasAWS ? 'active' : ''}">
                                 <input type="checkbox" id="aws-${node.id}" ${hasAWS ? 'checked' : ''}
-                                       data-folder-id="${node.id}" data-folder-name="${escapeHtml(node.name)}" data-destination="aws_s3"
-                                       ${childrenHaveAWS ? 'data-indeterminate="true"' : ''}>
+                                       data-folder-id="${node.id}" data-folder-name="${escapeHtml(node.name)}" data-destination="aws_s3">
                                 <label for="aws-${node.id}">
                                     <i class="bi bi-amazon dest-icon-aws"></i> S3
                                 </label>
-                                ${hasAWS || childrenHaveAWS ? getBackupStatusIcon(node.id, 'aws_s3', true, node) : ''}
+                                ${hasAWS ? getBackupStatusIcon(node.id, 'aws_s3', true, node) : ''}
                             </div>
-                            <div class="dest-checkbox-group ${hasB2 || childrenHaveB2 ? 'active' : ''}">
+                            <div class="dest-checkbox-group ${hasB2 ? 'active' : ''}">
                                 <input type="checkbox" id="b2-${node.id}" ${hasB2 ? 'checked' : ''}
-                                       data-folder-id="${node.id}" data-folder-name="${escapeHtml(node.name)}" data-destination="backblaze_b2"
-                                       ${childrenHaveB2 ? 'data-indeterminate="true"' : ''}>
+                                       data-folder-id="${node.id}" data-folder-name="${escapeHtml(node.name)}" data-destination="backblaze_b2">
                                 <label for="b2-${node.id}">
                                     <i class="bi bi-cloud-fill dest-icon-b2"></i> B2
                                 </label>
-                                ${hasB2 || childrenHaveB2 ? getBackupStatusIcon(node.id, 'backblaze_b2', true, node) : ''}
+                                ${hasB2 ? getBackupStatusIcon(node.id, 'backblaze_b2', true, node) : ''}
                             </div>
                         </div>
                     ` : `
@@ -643,11 +617,6 @@
                             children.innerHTML = renderNodes(data.children, getNodeLevel(nodeId) + 1, getNodePath(nodeId));
                             children.dataset.loaded = 'true';
                             console.log('Children loaded and rendered');
-                            
-                            // Set indeterminate state on newly rendered checkboxes
-                            children.querySelectorAll('input[data-indeterminate="true"]').forEach(checkbox => {
-                                checkbox.indeterminate = true;
-                            });
                         }
                     }
                 } catch (error) {
@@ -712,8 +681,63 @@
                     console.error('Failed to update policy:', data.error);
                 }
             }
+            
+            // If enabling, cascade to all children recursively
+            if (enabled) {
+                await cascadeToChildren(folderId, destination, folderName);
+            }
+            
+            // Re-render the tree to update visual state
+            renderTree();
+            
         } catch (error) {
             console.error('Error toggling destination:', error);
+        }
+    }
+    
+    async function cascadeToChildren(parentFolderId, destination, parentFolderName) {
+        // Find the parent node in the tree
+        const parentNode = findNodeById(driveTree, parentFolderId);
+        if (!parentNode || !parentNode.children) {
+            return;
+        }
+        
+        // Recursively enable destination for all child folders
+        for (const child of parentNode.children) {
+            if (child.type === 'folder') {
+                // Get current destinations for child
+                const childPolicy = folderPolicies[child.id];
+                let childDestinations = childPolicy ? [...childPolicy.destinations] : [];
+                
+                // Add destination if not already present
+                if (!childDestinations.includes(destination)) {
+                    childDestinations.push(destination);
+                    
+                    // Update child policy
+                    const response = await fetch('/api/folders/policies', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            folder_id: child.id,
+                            folder_name: child.name,
+                            folder_path: child.name,
+                            destinations: childDestinations
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    if (data.success) {
+                        if (!folderPolicies[child.id]) {
+                            folderPolicies[child.id] = {destinations: []};
+                        }
+                        folderPolicies[child.id].destinations = childDestinations;
+                        console.log(`Cascaded to child ${child.name}:`, childDestinations);
+                    }
+                }
+                
+                // Recursively cascade to grandchildren
+                await cascadeToChildren(child.id, destination, child.name);
+            }
         }
     }
 
