@@ -182,15 +182,6 @@ class SyncService:
             
             # Record that we're checking this file (not skipped)
             dedup_monitor.record_file_check(file_name, file_size, False, destinations)
-                    'file_name': file_name,
-                    'file_id': file_id,
-                    'size': file_size,
-                    'size_formatted': self._format_size(file_size),
-                    'remote_path': remote_path,
-                    'destinations': {dest: {'success': True, 'skipped': True} for dest in destinations},
-                    'skipped': True,
-                    'reason': 'File already exists in all destinations'
-                }
             
             # Download from Google Drive
             logger.info(f"Downloading from Google Drive...")
